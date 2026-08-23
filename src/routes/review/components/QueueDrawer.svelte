@@ -1,8 +1,8 @@
 <script>
-  import Icon from './Icon.svelte';
-  import IconButton from './IconButton.svelte';
-  import Button from './Button.svelte';
-  import Badge from './Badge.svelte';
+  import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
+  import Button from '$lib/components/Button.svelte';
+  import Badge from '$lib/components/Badge.svelte';
   import QueueItem from './QueueItem.svelte';
 
   /**

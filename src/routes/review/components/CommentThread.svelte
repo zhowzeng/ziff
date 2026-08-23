@@ -1,7 +1,7 @@
 <script>
-  import Button from './Button.svelte';
-  import Textarea from './Textarea.svelte';
-  import Icon from './Icon.svelte';
+  import Button from '$lib/components/Button.svelte';
+  import Textarea from '$lib/components/Textarea.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import CommentItem from './CommentItem.svelte';
 
   let {

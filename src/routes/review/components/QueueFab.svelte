@@ -1,5 +1,5 @@
 <script>
-  import Icon from './Icon.svelte';
+  import Icon from '$lib/components/Icon.svelte';
 
   let { count = 0, open = false, onclick } = $props();
 </script>

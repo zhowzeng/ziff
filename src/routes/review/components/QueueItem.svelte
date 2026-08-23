@@ -1,6 +1,6 @@
 <script>
-  import Icon from './Icon.svelte';
-  import IconButton from './IconButton.svelte';
+  import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
 
   let { item, onRemove, onCopy } = $props();
 

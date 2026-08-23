@@ -1,8 +1,8 @@
 <script>
   import { untrack } from 'svelte';
-  import Button from './Button.svelte';
-  import Textarea from './Textarea.svelte';
-  import Icon from './Icon.svelte';
+  import Button from '$lib/components/Button.svelte';
+  import Textarea from '$lib/components/Textarea.svelte';
+  import Icon from '$lib/components/Icon.svelte';
 
   /**
    * @typedef {Object} Props

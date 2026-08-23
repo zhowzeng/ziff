@@ -1,18 +1,18 @@
 <script lang="ts">
-  import FileTree from "$lib/components/FileTree.svelte";
-  import DiffHunk from "$lib/components/DiffHunk.svelte";
-  import DiffLine from "$lib/components/DiffLine.svelte";
-  import DiffLineSplit from "$lib/components/DiffLineSplit.svelte";
-  import CommentThread from "$lib/components/CommentThread.svelte";
+  import FileTree from "./components/FileTree.svelte";
+  import DiffHunk from "./components/DiffHunk.svelte";
+  import DiffLine from "./components/DiffLine.svelte";
+  import DiffLineSplit from "./components/DiffLineSplit.svelte";
+  import CommentThread from "./components/CommentThread.svelte";
   import Avatar from "$lib/components/Avatar.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import Input from "$lib/components/Input.svelte";
   import Dropdown from "$lib/components/Dropdown.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
   import FetchButton from "$lib/components/FetchButton.svelte";
-  import FileHeader from "$lib/components/FileHeader.svelte";
-  import QueueDrawer from "$lib/components/QueueDrawer.svelte";
-  import QueueFab from "$lib/components/QueueFab.svelte";
+  import FileHeader from "./components/FileHeader.svelte";
+  import QueueDrawer from "./components/QueueDrawer.svelte";
+  import QueueFab from "./components/QueueFab.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import SettingsModal, { DEFAULT_SETTINGS } from "$lib/components/SettingsModal.svelte";
   import { toast } from "$lib/toast/state.svelte";
