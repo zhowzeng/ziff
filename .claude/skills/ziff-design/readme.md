@@ -81,6 +81,6 @@ No logo or brand mark provided. The wordmark "Ziff" is set in plain type. **Stil
 ## Open questions / next steps
 
 1. The Ziff codebase or a Figma file, so components and screens can be built from real source rather than inference.
-2. Additional screens — PR list/inbox, settings, the "copy context to agent" flow, sync/connection states, empty states.
+2. Additional screens — settings, sync/connection states, empty states. **Out of scope for v1 (2026-08-23):** a PR list/inbox screen — v1 works against local repos/diffs only, no GitHub PR sync list. **Resolved (2026-08-23):** "copy context to agent" isn't a screen/flow — it's just copy-to-clipboard, already implemented (`ContextDrawer`'s "Copy all for agent" button + per-item copy in `ContextItem`, plus a `⌘⇧C`/`Ctrl+Shift+C` shortcut). "Settings" is currently just an unwired `Settings` icon button in `src/routes/+page.svelte` — no defined screen or content behind it yet.
 3. Real brand assets: **logo** (open item) and confirmation of the accent color (teal is a placeholder, deliberately kept distinct from GitHub's blue even after aligning the rest of the palette to real GitHub tokens).
 4. Confirmation of tone/voice guidelines beyond what one code comment can show.
