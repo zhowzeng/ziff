@@ -16,14 +16,14 @@ Because the only source is a single screenshot, this design system is a first pa
 - `components/comments/` — Avatar, CommentThread
 - `components/diff/` — FileTree, DiffLine, DiffHunk
 
-These are authored as React (`.jsx`) in the claude.ai/design project. **In this repo (SvelteKit), they've been ported to Svelte 5** — see `src/lib/components/`. Ported: Button, IconButton, Icon, Input, Textarea, Badge, Avatar, CommentThread (+ CommentItem), FileTree (+ FileTreeRow), DiffLine (+ DiffHunk, DiffLineSplit). Not yet ported: nothing from the core/forms/feedback/comments/diff sets — the remaining work is the full desktop-app screen chrome (see UI kits below).
+These are authored as React (`.jsx`) in the claude.ai/design project. **In this repo (SvelteKit), they've been ported to Svelte 5** — see `src/lib/components/`. Ported: Button, IconButton, Icon, Input, Textarea, Badge, Avatar, CommentThread (+ CommentItem), FileTree (+ FileTreeRow), DiffLine (+ DiffHunk, DiffLineSplit). From the desktop-app UI kit: Dropdown, ContextDrawer (+ ContextItem), ContextFab, FileHeader, FetchButton. `Segmented` is a Svelte-only addition (not a separate file in the React source) — `TopBar.jsx`'s `DiffModeToggle` and `DiffPanel.jsx`'s `ViewToggle`/`Segmented` were two near-identical inline implementations in the reference; ported as one reusable component instead of duplicating. Nothing left unported from the core/forms/feedback/comments/diff sets or the desktop-app chrome.
 
 Deviation from the React spec worth knowing: `CommentThread`'s `comments` items use a plain `text: string` field instead of React `children` (a JSX node) — Svelte props aren't JSX, so this is the natural adaptation. Everything else follows the `.d.ts` shapes as published.
 
 ## UI kits
 
 - `ui_kits/desktop-app/` (in the claude.ai/design project) — the full reference: PR header, file tree sidebar, diff panel, context drawer, comment thread with reply + resolve, project/branch dropdowns.
-- `src/routes/review/+page.svelte` in this repo — a first pass at the same screen in Svelte, built from the ported components above (topbar, file tree sidebar, diff panel with an inline comment thread). Not yet ported from the reference: the context drawer (`ContextDrawer.jsx`), the project/branch dropdowns (`Dropdown.jsx`), and the "save to context" FAB.
+- `src/routes/review/+page.svelte` in this repo — now a full port of `ui_kits/desktop-app/index.html`'s behavior: topbar with real project/branch `Dropdown`s, a diff-mode `Segmented` toggle, and a `FetchButton`; a diff panel with a `FileHeader`, a Unified/Split `Segmented` view toggle, and gutter drag-to-select-range commenting (mouse down on a line's gutter, drag across lines, release to open a comment thread anchored to that range) alongside the single fixed demo thread; a `ContextDrawer` that lists comments saved for a CLI agent; and a `ContextFab` that toggles it and shows the saved count. Submitting any comment (the fixed thread's reply, or a new range selection) saves it to context and opens the drawer automatically. One faithful-to-reference quirk carried over: in Split view there's no gutter-drag, so the only way to reopen the closed fixed thread there is the per-line hover "+" button — in Unified view that same hover button is superseded by the gutter drag handle and never renders (matches the original React reference's prop precedence).
 
 ## Guidelines
 
@@ -82,4 +82,3 @@ No logo or brand mark provided. The wordmark "Ziff" is set in plain type. **Stil
 2. Additional screens — PR list/inbox, settings, the "copy context to agent" flow, sync/connection states, empty states.
 3. Real brand assets: **logo** (open item) and confirmation of the accent color (teal is a placeholder, deliberately kept distinct from GitHub's blue even after aligning the rest of the palette to real GitHub tokens).
 4. Confirmation of tone/voice guidelines beyond what one code comment can show.
-5. Porting the remaining desktop-app screen chrome to Svelte: `ContextDrawer.jsx` (save-to-context panel), `Dropdown.jsx` (project/branch pickers), and the "save to context" FAB — see `ui_kits/desktop-app/` in the claude.ai/design project.
