@@ -5,13 +5,32 @@
   import Badge from './Badge.svelte';
   import QueueItem from './QueueItem.svelte';
 
+  /**
+   * @typedef {Object} QueueItemData
+   * @property {string} id
+   * @property {string} file
+   * @property {number} lineStart
+   * @property {number} [lineEnd]
+   * @property {string} text
+   */
+
+  /**
+   * @typedef {Object} Props
+   * @property {QueueItemData[]} items
+   * @property {(id: string) => void} onRemove
+   * @property {() => void} onClose
+   */
+
+  /** @type {Props} */
   let { items, onRemove, onClose } = $props();
 
+  /** @param {QueueItemData} item */
   function formatItem(item) {
     const range = item.lineEnd && item.lineEnd !== item.lineStart ? `L${item.lineStart}-L${item.lineEnd}` : `L${item.lineStart}`;
     return `${item.file}:${range}\n${item.text}`;
   }
 
+  /** @param {QueueItemData} item */
   function copyOne(item) {
     navigator.clipboard.writeText(formatItem(item));
   }
@@ -24,6 +43,7 @@
   const shortcutLabel = isMac ? '⌘⇧C' : 'Ctrl+Shift+C';
 
   $effect(() => {
+    /** @param {KeyboardEvent} e */
     function handler(e) {
       const mod = isMac ? e.metaKey : e.ctrlKey;
       if (mod && e.shiftKey && e.key.toLowerCase() === 'c' && items.length > 0) {

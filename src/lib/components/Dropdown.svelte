@@ -1,6 +1,27 @@
 <script>
   import Icon from './Icon.svelte';
 
+  /**
+   * @typedef {Object} DropdownOption
+   * @property {string} value
+   * @property {string} label
+   * @property {string} [meta]
+   */
+
+  /**
+   * @typedef {Object} Props
+   * @property {string} [icon]
+   * @property {string} [label]
+   * @property {string} [sublabel]
+   * @property {DropdownOption[]} options
+   * @property {string} value
+   * @property {(value: string) => void} onChange
+   * @property {number} [width]
+   * @property {() => void} [onAddNew]
+   * @property {string} [addNewLabel]
+   */
+
+  /** @type {Props} */
   let { icon, label, sublabel, options, value, onChange, width = 240, onAddNew, addNewLabel = 'Add new…' } = $props();
 
   let open = $state(false);
@@ -8,8 +29,9 @@
 
   $effect(() => {
     if (!open) return;
+    /** @param {MouseEvent} e */
     function onDown(e) {
-      if (root && !root.contains(e.target)) open = false;
+      if (root && !root.contains(/** @type {Node} */ (e.target))) open = false;
     }
     window.addEventListener('mousedown', onDown);
     return () => window.removeEventListener('mousedown', onDown);
@@ -47,9 +69,18 @@
         <div
           class="option"
           class:selected={o.value === value}
+          role="button"
+          tabindex="0"
           onclick={() => {
             onChange(o.value);
             open = false;
+          }}
+          onkeydown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              onChange(o.value);
+              open = false;
+            }
           }}
           style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--radius-sm);cursor:pointer"
         >
@@ -70,9 +101,18 @@
         <div class="divider"></div>
         <div
           class="option add-new"
+          role="button"
+          tabindex="0"
           onclick={() => {
             open = false;
             onAddNew();
+          }}
+          onkeydown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              open = false;
+              onAddNew();
+            }
           }}
           style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--radius-sm);cursor:pointer"
         >

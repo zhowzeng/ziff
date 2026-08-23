@@ -1,10 +1,22 @@
 <script>
   import IconButton from './IconButton.svelte';
 
+  /**
+   * @typedef {Object} Props
+   * @property {boolean} [open]
+   * @property {() => void} [onClose]
+   * @property {string} [title]
+   * @property {number} [width]
+   * @property {import('svelte').Snippet} [children]
+   * @property {import('svelte').Snippet} [footer]
+   */
+
+  /** @type {Props} */
   let { open = false, onClose, title, width = 420, children, footer } = $props();
 
   $effect(() => {
     if (!open) return;
+    /** @param {KeyboardEvent} e */
     function onKey(e) {
       if (e.key === 'Escape') onClose?.();
     }

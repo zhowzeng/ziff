@@ -1,6 +1,16 @@
 <script>
   import Icon from './Icon.svelte';
 
+  /**
+   * @typedef {Object} Props
+   * @property {string} icon
+   * @property {number} [size]
+   * @property {string} [title]
+   * @property {(e: MouseEvent) => void} [onclick]
+   * @property {boolean} [active]
+   */
+
+  /** @type {Props} */
   let { icon, size = 28, title, onclick, active = false } = $props();
   let hover = $state(false);
 

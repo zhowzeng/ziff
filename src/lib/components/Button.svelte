@@ -17,6 +17,17 @@
     danger: { background: 'var(--red-600)' },
   };
 
+  /**
+   * @typedef {Object} Props
+   * @property {'primary'|'secondary'|'ghost'|'danger'} [variant]
+   * @property {'sm'|'md'|'lg'} [size]
+   * @property {boolean} [disabled]
+   * @property {(e: MouseEvent) => void} [onclick]
+   * @property {string} [style]
+   * @property {import('svelte').Snippet} [children]
+   */
+
+  /** @type {Props & Record<string, any>} */
   let {
     variant = 'secondary',
     size = 'md',
@@ -29,6 +40,7 @@
 
   let hover = $state(false);
 
+  /** @param {Record<string, string>} obj */
   function toStyle(obj) {
     return Object.entries(obj).map(([k, v]) => `${k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase())}:${v}`).join(';');
   }

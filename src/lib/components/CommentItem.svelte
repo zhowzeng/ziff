@@ -1,12 +1,22 @@
 <script>
+  import { untrack } from 'svelte';
   import Button from './Button.svelte';
   import Textarea from './Textarea.svelte';
   import Icon from './Icon.svelte';
 
+  /**
+   * @typedef {Object} Props
+   * @property {string} time
+   * @property {string} text
+   * @property {boolean} [editable]
+   * @property {(text: string) => void} [onEdit]
+   */
+
+  /** @type {Props} */
   let { time, text, editable = false, onEdit } = $props();
 
   let editing = $state(false);
-  let draft = $state(text);
+  let draft = $state(untrack(() => text));
   let menuOpen = $state(false);
 </script>
 

@@ -5,24 +5,39 @@
     context: { bg: 'transparent', bar: 'transparent', text: 'var(--text-primary)', prefix: ' ' },
   };
 
+  /**
+   * @typedef {{ kind?: 'context'|'add'|'del', no?: number|null, text?: string, commentable?: boolean } | null} Side
+   */
+
+  /**
+   * @typedef {Object} Props
+   * @property {Side} left
+   * @property {Side} right
+   * @property {(e: MouseEvent) => void} [onAddComment]
+   */
+
+  /** @type {Props} */
   let { left, right, onAddComment } = $props();
 
   let leftHover = $state(false);
   let rightHover = $state(false);
+
+  let kLeft = $derived(kinds[left?.kind || 'context']);
+  let kRight = $derived(kinds[right?.kind || 'context']);
 </script>
 
-{#snippet half(side, hover, setHover)}
-  {@const k = kinds[side?.kind || 'context']}
+<div style="display:flex;font-family:var(--font-mono);font-size:var(--text-sm);line-height:20px">
   <div
-    onmouseenter={() => setHover(true)}
-    onmouseleave={() => setHover(false)}
-    style={`flex:1;display:flex;background:${side ? k.bg : 'var(--bg-subtle)'};
-      border-left:3px solid ${side ? k.bar : 'transparent'};min-width:0`}
+    role="presentation"
+    onmouseenter={() => (leftHover = true)}
+    onmouseleave={() => (leftHover = false)}
+    style={`flex:1;display:flex;background:${left ? kLeft.bg : 'var(--bg-subtle)'};
+      border-left:3px solid ${left ? kLeft.bar : 'transparent'};min-width:0`}
   >
-    <span style="width:34px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px;flex-shrink:0">{side ? side.no ?? '' : ''}</span>
-    <span style={`width:14px;color:${side ? k.text : 'transparent'};user-select:none;flex-shrink:0`}>{side ? k.prefix : ''}</span>
-    <span style={`color:${side ? k.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{side ? side.text : ''}</span>
-    {#if side?.commentable && hover}
+    <span style="width:34px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px;flex-shrink:0">{left ? left.no ?? '' : ''}</span>
+    <span style={`width:14px;color:${left ? kLeft.text : 'transparent'};user-select:none;flex-shrink:0`}>{left ? kLeft.prefix : ''}</span>
+    <span style={`color:${left ? kLeft.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{left ? left.text : ''}</span>
+    {#if left?.commentable && leftHover}
       <button
         onclick={onAddComment}
         title="Add comment"
@@ -30,10 +45,23 @@
       >+</button>
     {/if}
   </div>
-{/snippet}
-
-<div style="display:flex;font-family:var(--font-mono);font-size:var(--text-sm);line-height:20px">
-  {@render half(left, leftHover, (v) => (leftHover = v))}
   <div style="width:1px;background:var(--border-muted);flex-shrink:0"></div>
-  {@render half(right, rightHover, (v) => (rightHover = v))}
+  <div
+    role="presentation"
+    onmouseenter={() => (rightHover = true)}
+    onmouseleave={() => (rightHover = false)}
+    style={`flex:1;display:flex;background:${right ? kRight.bg : 'var(--bg-subtle)'};
+      border-left:3px solid ${right ? kRight.bar : 'transparent'};min-width:0`}
+  >
+    <span style="width:34px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px;flex-shrink:0">{right ? right.no ?? '' : ''}</span>
+    <span style={`width:14px;color:${right ? kRight.text : 'transparent'};user-select:none;flex-shrink:0`}>{right ? kRight.prefix : ''}</span>
+    <span style={`color:${right ? kRight.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{right ? right.text : ''}</span>
+    {#if right?.commentable && rightHover}
+      <button
+        onclick={onAddComment}
+        title="Add comment"
+        style="margin-left:auto;margin-right:8px;width:18px;height:18px;border-radius:4px;border:none;background:var(--accent-emphasis);color:#fff;font-size:12px;line-height:1;cursor:pointer;flex-shrink:0"
+      >+</button>
+    {/if}
+  </div>
 </div>

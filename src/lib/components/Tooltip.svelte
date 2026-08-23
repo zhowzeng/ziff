@@ -1,7 +1,17 @@
 <script>
+  /**
+   * @typedef {Object} Props
+   * @property {string} [text]
+   * @property {'top'|'bottom'|'left'|'right'} [position]
+   * @property {number} [delay]
+   * @property {import('svelte').Snippet} [children]
+   */
+
+  /** @type {Props} */
   let { text, position = 'top', delay = 300, children } = $props();
 
   let visible = $state(false);
+  /** @type {ReturnType<typeof setTimeout>} */
   let timer;
 
   function show() {
@@ -21,6 +31,7 @@
 </script>
 
 <span
+  role="presentation"
   style="position:relative;display:inline-flex"
   onmouseenter={show}
   onmouseleave={hide}

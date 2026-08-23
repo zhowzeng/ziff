@@ -2,6 +2,7 @@
   import Icon from './Icon.svelte';
   import FileTreeRow from './FileTreeRow.svelte';
 
+  /** @param {string} name */
   function fileIcon(name) {
     if (name.endsWith('.rs')) return 'cog';
     if (name.endsWith('.toml') || name.endsWith('.lock')) return 'settings-2';
@@ -19,7 +20,15 @@
 
 <div>
   <div
+    role="button"
+    tabindex="0"
     onclick={() => (isDir ? onToggle(node.path) : onSelect(node.path))}
+    onkeydown={(e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        isDir ? onToggle(node.path) : onSelect(node.path);
+      }
+    }}
     style={`display:flex;align-items:center;gap:4px;height:26px;padding-left:${8 + depth * 14}px;
       font-family:var(--font-sans);font-size:var(--text-sm);cursor:pointer;border-radius:var(--radius-sm);
       background:${isSelected ? 'var(--accent-subtle)' : 'transparent'};

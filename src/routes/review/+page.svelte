@@ -358,7 +358,7 @@
       <main class="diff-panel">
         <div class="diff-panel-header">
           <div class="file-header-wrap"><FileHeader path={selected} /></div>
-          <div class="view-toggle-wrap"><Segmented value={view} onChange={(v) => (view = v)} options={VIEW_MODES} /></div>
+          <div class="view-toggle-wrap"><Segmented value={view} onChange={(v) => (view = v as typeof view)} options={VIEW_MODES} /></div>
         </div>
 
         <DiffHunk label="@@ -10,5 +10,5 @@ fn load_workbook(path: &Path) -> Result<Xlsx<...>>" />

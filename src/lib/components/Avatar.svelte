@@ -1,6 +1,15 @@
 <script>
   const colors = ['#0ea5a4', '#2563eb', '#7c3aed', '#d97706', '#dc2626', '#059669'];
 
+  /**
+   * @typedef {Object} Props
+   * @property {string} [name]
+   * @property {string} [src]
+   * @property {number} [size]
+   * @property {string} [source]
+   */
+
+  /** @type {Props} */
   let { name, src, size = 28, source } = $props();
 
   let initial = $derived((name || '?').slice(0, 1).toUpperCase());

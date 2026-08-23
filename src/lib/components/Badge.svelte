@@ -7,6 +7,13 @@
     outline: 'background:transparent;color:var(--text-secondary);border:1px solid var(--border-default)',
   };
 
+  /**
+   * @typedef {Object} Props
+   * @property {'neutral'|'accent'|'success'|'danger'|'outline'} [variant]
+   * @property {import('svelte').Snippet} [children]
+   */
+
+  /** @type {Props} */
   let { variant = 'neutral', children } = $props();
 
   let computedStyle = $derived(

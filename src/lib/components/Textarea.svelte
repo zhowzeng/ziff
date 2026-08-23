@@ -1,4 +1,7 @@
 <script>
+  /** @typedef {Omit<import('svelte/elements').HTMLTextareaAttributes, 'value'> & { value?: string }} Props */
+
+  /** @type {Props} */
   let { value = $bindable(''), placeholder = '', rows = 3, style = '', ...rest } = $props();
 
   let focused = $state(false);

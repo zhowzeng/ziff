@@ -5,6 +5,21 @@
     context: { bg: 'transparent', bar: 'transparent', text: 'var(--text-primary)', prefix: ' ' },
   };
 
+  /**
+   * @typedef {Object} Props
+   * @property {'context'|'add'|'del'} [kind]
+   * @property {number|null} [oldNo]
+   * @property {number|null} [newNo]
+   * @property {import('svelte').Snippet} [children]
+   * @property {boolean} [commentable]
+   * @property {(e: MouseEvent) => void} [onAddComment]
+   * @property {number} index
+   * @property {boolean} [selected]
+   * @property {(index: number) => void} [onGutterDown]
+   * @property {(index: number) => void} [onGutterEnter]
+   */
+
+  /** @type {Props} */
   let {
     kind = 'context',
     oldNo,
@@ -23,6 +38,7 @@
 </script>
 
 <div
+  role="presentation"
   onmouseenter={() => {
     hover = true;
     onGutterEnter?.(index);

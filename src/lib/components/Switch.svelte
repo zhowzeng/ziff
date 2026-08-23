@@ -1,5 +1,16 @@
 <script>
+  /**
+   * @typedef {Object} Props
+   * @property {boolean} [checked]
+   * @property {string} [label]
+   * @property {boolean} [disabled]
+   * @property {(checked: boolean) => void} [onchange]
+   */
+
+  /** @type {Props} */
   let { checked = $bindable(false), label, disabled = false, onchange } = $props();
+
+  let switchId = $props.id();
 
   function toggle() {
     if (disabled) return;
@@ -9,10 +20,12 @@
 </script>
 
 <label
+  for={switchId}
   style={`display:inline-flex;align-items:center;gap:8px;font-family:var(--font-sans);font-size:var(--text-sm);color:var(--text-primary);
     cursor:${disabled ? 'not-allowed' : 'pointer'};opacity:${disabled ? 0.5 : 1}`}
 >
   <span
+    id={switchId}
     role="switch"
     aria-checked={checked}
     aria-disabled={disabled}

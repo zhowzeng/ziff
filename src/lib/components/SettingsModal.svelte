@@ -8,6 +8,8 @@
     usePrefixPrompt: false,
     prefixPrompt: '',
   };
+
+  /** @typedef {typeof DEFAULT_SETTINGS} Settings */
 </script>
 
 <script>
@@ -39,12 +41,23 @@
     { value: 'staged', label: 'Staged' },
   ];
 
+  /**
+   * @typedef {Object} Props
+   * @property {boolean} [open]
+   * @property {() => void} [onClose]
+   * @property {Settings} settings
+   * @property {(settings: Settings) => void} onChange
+   */
+
+  /** @type {Props} */
   let { open = false, onClose, settings, onChange } = $props();
 
+  /** @param {Partial<Settings>} patch */
   function set(patch) {
     onChange({ ...settings, ...patch });
   }
 
+  /** @param {number} delta */
   function stepZoom(delta) {
     set({ zoom: Math.min(150, Math.max(75, settings.zoom + delta)) });
   }

@@ -1,6 +1,15 @@
 <script>
   import Icon from './Icon.svelte';
 
+  /**
+   * @typedef {Object} Props
+   * @property {boolean} [checked]
+   * @property {string} [label]
+   * @property {boolean} [disabled]
+   * @property {(checked: boolean) => void} [onchange]
+   */
+
+  /** @type {Props} */
   let { checked = $bindable(false), label, disabled = false, onchange } = $props();
 
   function toggle() {

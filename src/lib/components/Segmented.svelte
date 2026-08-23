@@ -1,4 +1,18 @@
 <script>
+  /**
+   * @typedef {Object} SegmentedOption
+   * @property {string} value
+   * @property {string} label
+   */
+
+  /**
+   * @typedef {Object} Props
+   * @property {string} value
+   * @property {(value: string) => void} onChange
+   * @property {SegmentedOption[]} options
+   */
+
+  /** @type {Props} */
   let { value, onChange, options } = $props();
 </script>
 
