@@ -1,7 +1,7 @@
 <script>
   import Icon from './Icon.svelte';
 
-  let { icon, label, sublabel, options, value, onChange, width = 240 } = $props();
+  let { icon, label, sublabel, options, value, onChange, width = 240, onAddNew, addNewLabel = 'Add new…' } = $props();
 
   let open = $state(false);
   let root = $state();
@@ -66,6 +66,22 @@
           </div>
         </div>
       {/each}
+      {#if onAddNew}
+        <div class="divider"></div>
+        <div
+          class="option add-new"
+          onclick={() => {
+            open = false;
+            onAddNew();
+          }}
+          style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--radius-sm);cursor:pointer"
+        >
+          <div style="width:14px;display:flex;justify-content:center;flex-shrink:0">
+            <Icon name="folder-plus" size={13} color="var(--accent-emphasis)" />
+          </div>
+          <div style="font-family:var(--font-sans);font-size:var(--text-sm);font-weight:500;color:var(--accent-emphasis)">{addNewLabel}</div>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -77,5 +93,10 @@
   .option:hover,
   .option.selected {
     background: var(--bg-subtle);
+  }
+  .divider {
+    height: 1px;
+    background: var(--border-default);
+    margin: 4px 2px;
   }
 </style>

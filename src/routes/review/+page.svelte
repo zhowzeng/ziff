@@ -15,6 +15,7 @@
   import ContextFab from "$lib/components/ContextFab.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import SettingsModal, { DEFAULT_SETTINGS } from "$lib/components/SettingsModal.svelte";
+  import { toast } from "$lib/stores/toast.svelte.js";
 
   const PROJECTS = [
     { value: "goose", label: "goose", meta: "~/dev/goose" },
@@ -297,7 +298,16 @@
       <Icon name="git-pull-request" size={18} color="var(--accent)" />
       <span class="wordmark">Ziff</span>
     </div>
-    <Dropdown icon="folder" label="Project" options={PROJECTS} value={project} onChange={(v) => (project = v)} width={260} />
+    <Dropdown
+      icon="folder"
+      label="Project"
+      options={PROJECTS}
+      value={project}
+      onChange={(v) => (project = v)}
+      onAddNew={() => toast("Add-project folder picker isn't wired up yet")}
+      addNewLabel="Add project…"
+      width={260}
+    />
     <Icon name="chevron-right" size={12} color="var(--border-default)" />
     <Dropdown icon="git-branch" label="Branch" options={BRANCHES} value={branch} onChange={(v) => (branch = v)} width={280} />
     <div class="topbar-spacer"></div>
