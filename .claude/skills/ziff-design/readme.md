@@ -32,6 +32,7 @@ Deviation from the React spec worth knowing: `CommentThread`'s `comments` items 
 - `guidelines/colors-*.html` — neutral ramp, accent, semantic, diff colors
 - `guidelines/type-*.html` — sans and mono type scales
 - `guidelines/spacing-scale.html`, `guidelines/radius-elevation.html`
+- `guidelines/brand-wordmark.html` — the type-only "Ziff" wordmark placeholder (synced 2026-08-23)
 
 Open any of these directly in a browser to preview a token category — they link straight to the app's real tokens (`../../../../src/lib/styles/tokens/index.css`), not a local copy.
 
