@@ -1,156 +1,118 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import Button from "$lib/components/Button.svelte";
+  import Input from "$lib/components/Input.svelte";
+  import Badge from "$lib/components/Badge.svelte";
+  import IconButton from "$lib/components/IconButton.svelte";
+  import Icon from "$lib/components/Icon.svelte";
 
   let name = $state("");
   let greetMsg = $state("");
 
   async function greet(event: Event) {
     event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
     greetMsg = await invoke("greet", { name });
   }
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+<main class="page">
+  <header class="page-header">
+    <div class="brand">
+      <Icon name="git-pull-request" size={20} color="var(--accent)" />
+      <span class="wordmark">Ziff</span>
+    </div>
+    <Badge variant="accent">Design system online</Badge>
+  </header>
 
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
-  </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
+  <section class="card">
+    <h1>Welcome to Ziff</h1>
+    <p class="muted">
+      Tokens and core components are now wired up from the Ziff design system
+      (Mona Sans, GitHub Primer colors, teal accent).
+    </p>
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
+    <form class="row" onsubmit={greet}>
+      <Input bind:value={name} placeholder="Enter a name..." />
+      <Button type="submit" variant="primary">Greet</Button>
+    </form>
+    {#if greetMsg}
+      <p class="result">{greetMsg}</p>
+    {/if}
+
+    <div class="row" style="margin-top: var(--space-6); gap: var(--space-2)">
+      <Button variant="primary">Sync pull request</Button>
+      <Button variant="secondary">Resolve comment</Button>
+      <Button variant="ghost">Cancel</Button>
+      <Button variant="danger">Delete branch</Button>
+      <IconButton icon="settings" title="Settings" />
+    </div>
+
+    <div class="row" style="margin-top: var(--space-4); gap: var(--space-2)">
+      <Badge variant="neutral">Draft</Badge>
+      <Badge variant="success">Merged</Badge>
+      <Badge variant="danger">Closed</Badge>
+      <Badge variant="outline">Open</Badge>
+    </div>
+  </section>
 </main>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
-
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-4);
+    font-family: var(--font-sans);
   }
 
-  a:hover {
-    color: #24c8db;
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-6);
   }
 
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
 
+  .wordmark {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-sm);
+  }
+
+  h1 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-2xl);
+    font-weight: 700;
+  }
+
+  .muted {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    margin: 0 0 var(--space-4);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .result {
+    margin-top: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
 </style>
