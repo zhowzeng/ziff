@@ -24,6 +24,11 @@
     <Badge variant="accent">Design system online</Badge>
   </header>
 
+  <a class="preview-link" href="/review">
+    <Icon name="arrow-right" size={14} />
+    Open the diff review screen preview
+  </a>
+
   <section class="card">
     <h1>Welcome to Ziff</h1>
     <p class="muted">
@@ -107,6 +112,21 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+  }
+
+  .preview-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-bottom: var(--space-4);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--text-link);
+    text-decoration: none;
+  }
+
+  .preview-link:hover {
+    color: var(--text-link-hover);
   }
 
   .result {

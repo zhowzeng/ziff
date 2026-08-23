@@ -1,0 +1,56 @@
+<script>
+  const kinds = {
+    add: { bg: 'var(--diff-add-bg)', bar: 'var(--diff-add-bg-strong)', text: 'var(--diff-add-text)', prefix: '+' },
+    del: { bg: 'var(--diff-remove-bg)', bar: 'var(--diff-remove-bg-strong)', text: 'var(--diff-remove-text)', prefix: '-' },
+    context: { bg: 'transparent', bar: 'transparent', text: 'var(--text-primary)', prefix: ' ' },
+  };
+
+  let {
+    kind = 'context',
+    oldNo,
+    newNo,
+    children,
+    commentable = false,
+    onAddComment,
+    index,
+    selected = false,
+    onGutterDown,
+    onGutterEnter,
+  } = $props();
+
+  let hover = $state(false);
+  let k = $derived(kinds[kind] || kinds.context);
+</script>
+
+<div
+  onmouseenter={() => {
+    hover = true;
+    onGutterEnter?.(index);
+  }}
+  onmouseleave={() => (hover = false)}
+  style={`display:flex;background:${selected ? 'var(--accent-subtle)' : k.bg};
+    border-left:3px solid ${selected ? 'var(--accent-emphasis)' : k.bar};
+    font-family:var(--font-mono);font-size:var(--text-sm);line-height:20px;position:relative`}
+>
+  {#if (hover || selected) && onGutterDown}
+    <button
+      onmousedown={(e) => {
+        e.preventDefault();
+        onGutterDown(index);
+      }}
+      title="Add comment (drag to select multiple lines)"
+      style="position:absolute;left:2px;top:1px;width:16px;height:18px;border-radius:4px;border:none;background:var(--accent-emphasis);color:#fff;font-size:12px;line-height:1;cursor:pointer;z-index:1"
+    >+</button>
+  {/if}
+  <span style="width:36px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px">{oldNo ?? ''}</span>
+  <span style="width:36px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:8px">{newNo ?? ''}</span>
+  <span style={`width:14px;color:${k.text};user-select:none`}>{k.prefix}</span>
+  <span style={`color:${k.text};white-space:pre`}>{@render children?.()}</span>
+  {#if commentable && hover && !onGutterDown}
+    <button
+      onclick={onAddComment}
+      title="Add comment"
+      style="margin-left:auto;margin-right:8px;width:18px;height:18px;border-radius:4px;border:none;background:var(--accent-emphasis);color:#fff;font-size:12px;line-height:1;cursor:pointer"
+    >+</button>
+  {/if}
+</div>

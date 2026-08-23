@@ -16,11 +16,14 @@ Because the only source is a single screenshot, this design system is a first pa
 - `components/comments/` — Avatar, CommentThread
 - `components/diff/` — FileTree, DiffLine, DiffHunk
 
-These are authored as React (`.jsx`) in the claude.ai/design project. **In this repo (SvelteKit), they've been ported to Svelte 5** — see `src/lib/components/`. So far ported: Button, IconButton, Icon, Input, Textarea, Badge. Not yet ported: Avatar, CommentThread, FileTree, DiffLine, DiffHunk — port these the same way (read the `.prompt.md` + `.d.ts` spec from the design project, rewrite using the tokens here and Svelte 5 runes).
+These are authored as React (`.jsx`) in the claude.ai/design project. **In this repo (SvelteKit), they've been ported to Svelte 5** — see `src/lib/components/`. Ported: Button, IconButton, Icon, Input, Textarea, Badge, Avatar, CommentThread (+ CommentItem), FileTree (+ FileTreeRow), DiffLine (+ DiffHunk, DiffLineSplit). Not yet ported: nothing from the core/forms/feedback/comments/diff sets — the remaining work is the full desktop-app screen chrome (see UI kits below).
+
+Deviation from the React spec worth knowing: `CommentThread`'s `comments` items use a plain `text: string` field instead of React `children` (a JSX node) — Svelte props aren't JSX, so this is the natural adaptation. Everything else follows the `.d.ts` shapes as published.
 
 ## UI kits
 
-- `ui_kits/desktop-app/` (in the claude.ai/design project) — the main review screen: PR header, file tree sidebar, diff panel, inline comment thread with reply + resolve. Reference for the full-screen layout once the remaining components are ported.
+- `ui_kits/desktop-app/` (in the claude.ai/design project) — the full reference: PR header, file tree sidebar, diff panel, context drawer, comment thread with reply + resolve, project/branch dropdowns.
+- `src/routes/review/+page.svelte` in this repo — a first pass at the same screen in Svelte, built from the ported components above (topbar, file tree sidebar, diff panel with an inline comment thread). Not yet ported from the reference: the context drawer (`ContextDrawer.jsx`), the project/branch dropdowns (`Dropdown.jsx`), and the "save to context" FAB.
 
 ## Guidelines
 
@@ -79,4 +82,4 @@ No logo or brand mark provided. The wordmark "Ziff" is set in plain type. **Stil
 2. Additional screens — PR list/inbox, settings, the "copy context to agent" flow, sync/connection states, empty states.
 3. Real brand assets: **logo** (open item) and confirmation of the accent color (teal is a placeholder, deliberately kept distinct from GitHub's blue even after aligning the rest of the palette to real GitHub tokens).
 4. Confirmation of tone/voice guidelines beyond what one code comment can show.
-5. Porting the remaining components (Avatar, CommentThread, FileTree, DiffLine, DiffHunk) and the full desktop-app UI kit layout to Svelte.
+5. Porting the remaining desktop-app screen chrome to Svelte: `ContextDrawer.jsx` (save-to-context panel), `Dropdown.jsx` (project/branch pickers), and the "save to context" FAB — see `ui_kits/desktop-app/` in the claude.ai/design project.
