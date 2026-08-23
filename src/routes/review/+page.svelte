@@ -6,12 +6,15 @@
   import CommentThread from "$lib/components/CommentThread.svelte";
   import Avatar from "$lib/components/Avatar.svelte";
   import Icon from "$lib/components/Icon.svelte";
+  import Input from "$lib/components/Input.svelte";
   import Dropdown from "$lib/components/Dropdown.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
   import FetchButton from "$lib/components/FetchButton.svelte";
   import FileHeader from "$lib/components/FileHeader.svelte";
   import ContextDrawer from "$lib/components/ContextDrawer.svelte";
   import ContextFab from "$lib/components/ContextFab.svelte";
+  import EmptyState from "$lib/components/EmptyState.svelte";
+  import SettingsModal, { DEFAULT_SETTINGS } from "$lib/components/SettingsModal.svelte";
 
   const PROJECTS = [
     { value: "goose", label: "goose", meta: "~/dev/goose" },
@@ -34,7 +37,15 @@
     { value: "split", label: "Split" },
   ];
 
-  const tree = [
+  type TreeNode = {
+    name: string;
+    path: string;
+    type: "dir" | "file";
+    changes?: { add: number; del: number };
+    children?: TreeNode[];
+  };
+
+  const tree: TreeNode[] = [
     {
       name: "src",
       path: "src",
@@ -47,6 +58,41 @@
     { name: "Cargo.toml", path: "Cargo.toml", type: "file", changes: { add: 2, del: 1 } },
   ];
 
+  function pruneToChanged(nodes: TreeNode[]): TreeNode[] {
+    return nodes.reduce<TreeNode[]>((acc, n) => {
+      if (n.type === "file") {
+        if (n.changes) acc.push(n);
+        return acc;
+      }
+      const children = pruneToChanged(n.children || []);
+      if (children.length) acc.push({ ...n, children });
+      return acc;
+    }, []);
+  }
+  function pruneByName(nodes: TreeNode[], q: string): TreeNode[] {
+    return nodes.reduce<TreeNode[]>((acc, n) => {
+      if (n.type === "file") {
+        if (n.name.toLowerCase().includes(q)) acc.push(n);
+        return acc;
+      }
+      const children = pruneByName(n.children || [], q);
+      if (children.length) acc.push({ ...n, children });
+      return acc;
+    }, []);
+  }
+  function allPaths(nodes: TreeNode[]): string[] {
+    const paths: string[] = [];
+    const walk = (ns: TreeNode[]) =>
+      ns.forEach((n) => {
+        if (n.type === "dir") {
+          paths.push(n.path);
+          walk(n.children || []);
+        }
+      });
+    walk(nodes);
+    return paths;
+  }
+
   let project = $state("goose");
   let branch = $state("feature/xlsx-api-upgrade");
   let diffMode = $state("unstaged");
@@ -55,6 +101,19 @@
   let replyValue = $state("");
   let contextOpen = $state(false);
   let savedContext = $state<{ id: string; file: string; lineStart: number; lineEnd?: number; text: string }[]>([]);
+
+  let scenario = $state<"normal" | "no-project" | "no-diff">("normal");
+  let showAllFiles = $state(false);
+  let fileFilter = $state("");
+  let settingsOpen = $state(false);
+  let settings = $state({ ...DEFAULT_SETTINGS });
+
+  let changedTree = $derived(pruneToChanged(tree));
+  let baseTree = $derived(showAllFiles ? tree : changedTree);
+  let shownTree = $derived(fileFilter.trim() ? pruneByName(baseTree, fileFilter.trim().toLowerCase()) : baseTree);
+  let sidebarEmptyState = $derived(
+    scenario === "no-diff" ? "no-diff" : fileFilter.trim() && shownTree.length === 0 ? "no-match" : null
+  );
 
   type DiffLineData = {
     kind: "context" | "add" | "del";
@@ -226,6 +285,13 @@
 {/snippet}
 
 <div class="app">
+  <div class="demo-scenario">
+    <span class="demo-scenario-label">DEMO STATE</span>
+    {#each [["normal", "一般"], ["no-project", "剛安裝"], ["no-diff", "無變更"]] as [v, l] (v)}
+      <button class="demo-scenario-btn" class:active={scenario === v} onclick={() => (scenario = v as typeof scenario)}>{l}</button>
+    {/each}
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <Icon name="git-pull-request" size={18} color="var(--accent)" />
@@ -243,53 +309,85 @@
       <div class="sidebar-toolbar">
         <Segmented value={diffMode} onChange={(v) => (diffMode = v)} options={DIFF_MODES} />
       </div>
-      <div class="sidebar-tree">
-        <FileTree {tree} {selected} onSelect={selectFile} />
+      <div class="sidebar-filter">
+        <div class="filter-input-wrap">
+          <Icon name="search" size={13} color="var(--text-tertiary)" class="filter-icon" />
+          <Input placeholder="Filter files…" size="sm" bind:value={fileFilter} disabled={scenario === "no-project"} style="padding-left:26px" />
+        </div>
+        <label class="show-all-label">
+          <input type="checkbox" bind:checked={showAllFiles} disabled={scenario === "no-project"} />
+          顯示所有檔案
+        </label>
       </div>
+      <div class="sidebar-tree">
+        {#if scenario === "no-project"}
+          <EmptyState size="sm" icon="folder-git-2" title="尚未選擇 project" hint="從上方選擇 project 與 branch 後，這裡會顯示變更的檔案。" />
+        {:else if sidebarEmptyState === "no-diff"}
+          <EmptyState size="sm" icon="git-compare" title="此分支沒有變更" hint="切換到有變更的分支，或勾選「顯示所有檔案」瀏覽整個專案。" />
+        {:else if sidebarEmptyState === "no-match"}
+          <EmptyState size="sm" icon="search-x" title="找不到符合的檔案" hint={`沒有檔案名稱包含「${fileFilter.trim()}」`} />
+        {:else}
+          <FileTree tree={shownTree} {selected} onSelect={selectFile} defaultExpanded={allPaths(changedTree)} />
+        {/if}
+      </div>
+      <button class="settings-entry" onclick={() => (settingsOpen = true)}>
+        <Icon name="settings" size={14} color="var(--text-tertiary)" />
+        Settings
+      </button>
     </aside>
 
-    <main class="diff-panel">
-      <div class="diff-panel-header">
-        <div class="file-header-wrap"><FileHeader path={selected} /></div>
-        <div class="view-toggle-wrap"><Segmented value={view} onChange={(v) => (view = v)} options={VIEW_MODES} /></div>
-      </div>
+    {#if scenario === "no-project"}
+      <main class="diff-panel diff-panel-empty">
+        <EmptyState size="md" icon="folder-git-2" title="選擇一個 project 開始" hint="從左上角選擇 project 與 branch，即可檢視變更並開始留言。" />
+      </main>
+    {:else if scenario === "no-diff"}
+      <main class="diff-panel diff-panel-empty">
+        <EmptyState size="md" icon="git-compare" title="這個分支目前沒有變更" hint="切換到有 commit 差異的分支，或建立新的變更後再回來查看。" />
+      </main>
+    {:else}
+      <main class="diff-panel">
+        <div class="diff-panel-header">
+          <div class="file-header-wrap"><FileHeader path={selected} /></div>
+          <div class="view-toggle-wrap"><Segmented value={view} onChange={(v) => (view = v)} options={VIEW_MODES} /></div>
+        </div>
 
-      <DiffHunk label="@@ -10,5 +10,5 @@ fn load_workbook(path: &Path) -> Result<Xlsx<...>>" />
+        <DiffHunk label="@@ -10,5 +10,5 @@ fn load_workbook(path: &Path) -> Result<Xlsx<...>>" />
 
-      {#if view === "unified"}
-        {#each diffLines as line, i (i)}
-          <DiffLine
-            kind={line.kind}
-            oldNo={line.oldNo}
-            newNo={line.newNo}
-            commentable={line.commentable}
-            onAddComment={() => (openLineThread = true)}
-            index={i}
-            selected={isSelected(i)}
-            onGutterDown={gutterDown}
-            onGutterEnter={gutterEnter}
-          >
-            {line.text}
-          </DiffLine>
-          {#if line.commentHere && openLineThread}
-            {@render commentBlock(rangeLineNo(commentHereIndex), undefined, [fixedComment], submitFixedComment, () => (openLineThread = false))}
-          {/if}
-          {#if range && i === range.hi}
-            {@render commentBlock(rangeLineNo(range.lo), rangeLineNo(range.hi), rangeComments, submitRangeComment, () => {
-              range = null;
-              rangeComments = [];
-            })}
-          {/if}
-        {/each}
-      {:else}
-        {#each splitRows as row, i (i)}
-          <DiffLineSplit left={row.left} right={row.right} onAddComment={() => (openLineThread = true)} />
-          {#if row.right?._srcIndex !== undefined && diffLines[row.right._srcIndex]?.commentHere && openLineThread}
-            {@render commentBlock(rangeLineNo(commentHereIndex), undefined, [fixedComment], submitFixedComment, () => (openLineThread = false))}
-          {/if}
-        {/each}
-      {/if}
-    </main>
+        {#if view === "unified"}
+          {#each diffLines as line, i (i)}
+            <DiffLine
+              kind={line.kind}
+              oldNo={line.oldNo}
+              newNo={line.newNo}
+              commentable={line.commentable}
+              onAddComment={() => (openLineThread = true)}
+              index={i}
+              selected={isSelected(i)}
+              onGutterDown={gutterDown}
+              onGutterEnter={gutterEnter}
+            >
+              {line.text}
+            </DiffLine>
+            {#if line.commentHere && openLineThread}
+              {@render commentBlock(rangeLineNo(commentHereIndex), undefined, [fixedComment], submitFixedComment, () => (openLineThread = false))}
+            {/if}
+            {#if range && i === range.hi}
+              {@render commentBlock(rangeLineNo(range.lo), rangeLineNo(range.hi), rangeComments, submitRangeComment, () => {
+                range = null;
+                rangeComments = [];
+              })}
+            {/if}
+          {/each}
+        {:else}
+          {#each splitRows as row, i (i)}
+            <DiffLineSplit left={row.left} right={row.right} onAddComment={() => (openLineThread = true)} />
+            {#if row.right?._srcIndex !== undefined && diffLines[row.right._srcIndex]?.commentHere && openLineThread}
+              {@render commentBlock(rangeLineNo(commentHereIndex), undefined, [fixedComment], submitFixedComment, () => (openLineThread = false))}
+            {/if}
+          {/each}
+        {/if}
+      </main>
+    {/if}
 
     {#if contextOpen}
       <ContextDrawer items={savedContext} onRemove={removeFromContext} onClose={() => (contextOpen = false)} />
@@ -297,6 +395,7 @@
   </div>
 
   <ContextFab count={savedContext.length} open={contextOpen} onclick={() => (contextOpen = !contextOpen)} />
+  <SettingsModal open={settingsOpen} onClose={() => (settingsOpen = false)} {settings} onChange={(s) => (settings = s)} />
 </div>
 
 <style>
@@ -362,11 +461,68 @@
     flex-shrink: 0;
   }
 
+  .sidebar-filter {
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--border-muted);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .filter-input-wrap {
+    position: relative;
+  }
+
+  .filter-input-wrap :global(.filter-icon) {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    pointer-events: none;
+  }
+
+  .show-all-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .show-all-label input {
+    margin: 0;
+    accent-color: var(--accent-emphasis);
+  }
+
   .sidebar-tree {
     flex: 1;
     min-height: 0;
     padding: var(--space-2);
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .settings-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 10px;
+    border: none;
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-subtle);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .settings-entry:hover {
+    background: var(--bg-inset);
   }
 
   .diff-panel {
@@ -374,6 +530,10 @@
     min-width: 0;
     overflow-y: auto;
     background: var(--bg-canvas);
+  }
+
+  .diff-panel-empty {
+    display: flex;
   }
 
   .diff-panel-header {
@@ -413,5 +573,44 @@
   .thread-body {
     flex: 1;
     min-width: 0;
+  }
+
+  .demo-scenario {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    z-index: 90;
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--gray-0);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+  }
+
+  .demo-scenario-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    align-self: center;
+    padding: 0 6px;
+  }
+
+  .demo-scenario-btn {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .demo-scenario-btn.active {
+    background: var(--accent-emphasis);
+    color: var(--gray-0);
   }
 </style>
