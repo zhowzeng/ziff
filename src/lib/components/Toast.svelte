@@ -1,5 +1,5 @@
 <script>
-  import { getToasts, dismiss } from '../stores/toast.svelte.js';
+  import { getToasts, dismiss } from '../toast/state.svelte';
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
 

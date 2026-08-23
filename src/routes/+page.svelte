@@ -9,7 +9,7 @@
   import Checkbox from "$lib/components/Checkbox.svelte";
   import Switch from "$lib/components/Switch.svelte";
   import Tooltip from "$lib/components/Tooltip.svelte";
-  import { toast } from "$lib/stores/toast.svelte.js";
+  import { toast } from "$lib/toast/state.svelte";
 
   let name = $state("");
   let greetMsg = $state("");

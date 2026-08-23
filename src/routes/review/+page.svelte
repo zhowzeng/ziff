@@ -15,7 +15,7 @@
   import QueueFab from "$lib/components/QueueFab.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import SettingsModal, { DEFAULT_SETTINGS } from "$lib/components/SettingsModal.svelte";
-  import { toast } from "$lib/stores/toast.svelte.js";
+  import { toast } from "$lib/toast/state.svelte";
 
   const REPOS = [
     { value: "goose", label: "goose", meta: "~/dev/goose" },
