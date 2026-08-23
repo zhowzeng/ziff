@@ -1,0 +1,3 @@
+# No reply/thread model for comments
+
+Ziff is a solo-review tool — the reviewer is the only author of their comments, not one participant in a multi-person discussion. So [[Comment]]s anchored to a diff range have no reply chain: revising a comment means editing it in place, not adding a reply underneath it. This is why `CommentThread.svelte` only ever renders a single comment (`comments.slice(0, 1)`) and shows no input once a comment exists — that's the intended v1 shape, not an unfinished reply feature. If Ziff later needs multi-party review (e.g. syncing GitHub PR review threads), this will need revisiting.

@@ -1,0 +1,32 @@
+# Ziff
+
+Ziff is a desktop app for reviewing local git diffs — reading changed files, leaving comments anchored to diff lines, and copying review notes to CLI coding agents.
+
+## Language
+
+**Comment Queue**:
+The list of comments a reviewer has saved to hand off to a CLI coding agent later, in bulk. Comments are added one at a time (via the "Add to Queue" choice at submit) and reviewed/copied together.
+_Avoid_: Context, Context Kit, Queue (alone), saved context
+
+**Copy Now**:
+Copying a single comment straight to the clipboard at the moment it's submitted, bypassing the Comment Queue entirely — used-once, not saved anywhere in the app. Chosen per comment, alongside "Add to Queue", at submit time.
+_Avoid_: Quick copy, instant copy, direct copy
+
+**Repo**:
+A local git repository (backed by a GitHub repo) the reviewer has added to Ziff. Selected alongside a Branch to produce the diff being reviewed.
+_Avoid_: Project, repository, workspace
+
+**Diff Mode**:
+How the diff shown is computed: Unstaged (working tree vs index), Staged (index vs HEAD), or Branch (the selected Branch vs a Base Branch).
+_Avoid_: Compare mode
+
+**Base Branch**:
+The branch a Branch-mode diff is compared against. Defaults to the Repo's default branch, but the reviewer can pick any branch instead.
+_Avoid_: Target branch, main (not always main)
+
+**Comment**:
+A single note the reviewer leaves anchored to a diff line or line range. Ziff is a solo-review tool — comments are the reviewer's own notes, not a multi-party discussion, so there's no reply/thread model. Revising one means editing it in place, not replying to it.
+_Avoid_: Comment thread, thread, reply
+
+**Context line**:
+A git diff term (unchanged line shown for surrounding context) — general to diffs, not a Ziff-specific concept. Not `Comment Queue`.
