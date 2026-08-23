@@ -5,6 +5,11 @@
   import Badge from "$lib/components/Badge.svelte";
   import IconButton from "$lib/components/IconButton.svelte";
   import Icon from "$lib/components/Icon.svelte";
+  import Modal from "$lib/components/Modal.svelte";
+  import Checkbox from "$lib/components/Checkbox.svelte";
+  import Switch from "$lib/components/Switch.svelte";
+  import Tooltip from "$lib/components/Tooltip.svelte";
+  import { toast } from "$lib/stores/toast.svelte.js";
 
   let name = $state("");
   let greetMsg = $state("");
@@ -13,6 +18,10 @@
     event.preventDefault();
     greetMsg = await invoke("greet", { name });
   }
+
+  let modalOpen = $state(false);
+  let autoSync = $state(true);
+  let notifyOnMention = $state(false);
 </script>
 
 <main class="page">
@@ -59,7 +68,36 @@
       <Badge variant="outline">Open</Badge>
     </div>
   </section>
+
+  <section class="card" style="margin-top: var(--space-6)">
+    <h2 class="section-title">New components</h2>
+    <p class="muted">Modal, Toast, Checkbox, Switch, Tooltip — Svelte-only additions, no screen using them yet.</p>
+
+    <div class="row" style="gap: var(--space-3); flex-wrap: wrap">
+      <Button variant="secondary" onclick={() => (modalOpen = true)}>Open modal</Button>
+      <Button variant="secondary" onclick={() => toast('Synced 2m ago')}>Toast — default</Button>
+      <Button variant="secondary" onclick={() => toast('Comment saved to context', { variant: 'success' })}>Toast — success</Button>
+      <Button variant="secondary" onclick={() => toast('Sync failed — check connection', { variant: 'danger' })}>Toast — danger</Button>
+      <Tooltip text="Copies all saved comments for your CLI agent">
+        <IconButton icon="info" title="What does this do?" />
+      </Tooltip>
+    </div>
+
+    <div class="row" style="margin-top: var(--space-5); gap: var(--space-5)">
+      <Checkbox bind:checked={autoSync} label="Auto-sync on file save" />
+      <Switch bind:checked={notifyOnMention} label="Notify on @mention" />
+    </div>
+  </section>
 </main>
+
+<Modal open={modalOpen} onClose={() => (modalOpen = false)} title="Repository settings" width={420}>
+  <p class="muted" style="margin: 0 0 var(--space-4)">Settings scope isn't defined yet — this is a placeholder to show the Modal component.</p>
+  <Checkbox bind:checked={autoSync} label="Auto-sync on file save" />
+  {#snippet footer()}
+    <Button variant="ghost" onclick={() => (modalOpen = false)}>Cancel</Button>
+    <Button variant="primary" onclick={() => (modalOpen = false)}>Save</Button>
+  {/snippet}
+</Modal>
 
 <style>
   .page {
@@ -99,6 +137,12 @@
   h1 {
     margin: 0 0 var(--space-2);
     font-size: var(--text-2xl);
+    font-weight: 700;
+  }
+
+  .section-title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-lg);
     font-weight: 700;
   }
 

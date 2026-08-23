@@ -1,5 +1,6 @@
 <script>
   import '$lib/styles/tokens/index.css';
+  import Toast from '$lib/components/Toast.svelte';
 
   let { children } = $props();
 </script>
@@ -13,3 +14,4 @@
 </style>
 
 {@render children?.()}
+<Toast />
