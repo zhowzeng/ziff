@@ -10,15 +10,22 @@ Because the only source is a single screenshot, this design system is a first pa
 
 ## Components
 
-Source of truth: `src/lib/components/` in this repo (Svelte 5, runes).
+Source of truth: `src/lib/components/` for components shared across routes; review-only
+components colocate at `src/routes/review/components/` instead (see
+`docs/decisions/0004-route-colocation-over-early-lib-sharing.md`). Both are Svelte 5, runes.
 
-- Core — Button, IconButton, Icon
-- Forms — Input, Textarea
-- Feedback — Badge
-- Comments — Avatar, CommentThread (+ CommentItem)
-- Diff — FileTree (+ FileTreeRow), DiffLine (+ DiffHunk, DiffLineSplit)
-- Desktop-app chrome — Dropdown, QueueDrawer (+ QueueItem), QueueFab, FileHeader, FetchButton, SettingsModal, EmptyState
-- Other primitives — Modal, Toast/ToastStack, Checkbox, Switch, Tooltip, Segmented
+- Core (`lib/components/`) — Button, IconButton, Icon
+- Forms (`lib/components/`) — Input, Textarea
+- Feedback (`lib/components/`) — Badge
+- Comments (`routes/review/components/`) — Avatar*, CommentThread (+ CommentItem)
+- Diff (`routes/review/components/`) — FileTree (+ FileTreeRow), DiffLine (+ DiffHunk, DiffLineSplit)
+- Desktop-app chrome — QueueDrawer (+ QueueItem), QueueFab, FileHeader are in
+  `routes/review/components/`; Dropdown, FetchButton, SettingsModal, EmptyState stay in
+  `lib/components/` (plausibly reusable by a future non-review route)
+- Other primitives (`lib/components/`) — Modal, Toast/ToastStack, Checkbox, Switch, Tooltip, Segmented
+
+\* `Avatar` is grouped with Comments by usage but lives in `lib/components/` — it's a generic
+identity primitive, not review-specific.
 
 `Segmented` is one reusable component covering what would otherwise be two near-identical toggles (the topbar's diff-mode toggle, the diff panel's unified/split view toggle).
 
