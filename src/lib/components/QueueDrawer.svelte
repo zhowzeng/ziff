@@ -3,7 +3,7 @@
   import IconButton from './IconButton.svelte';
   import Button from './Button.svelte';
   import Badge from './Badge.svelte';
-  import ContextItem from './ContextItem.svelte';
+  import QueueItem from './QueueItem.svelte';
 
   let { items, onRemove, onClose } = $props();
 
@@ -39,7 +39,7 @@
 <div style="width:320px;min-width:320px;border-left:1px solid var(--border-default);background:var(--bg-subtle);display:flex;flex-direction:column">
   <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--border-default);background:var(--gray-0)">
     <Icon name="terminal" size={14} color="var(--text-secondary)" />
-    <span style="font-family:var(--font-sans);font-weight:600;font-size:var(--text-sm);color:var(--text-primary)">Saved context</span>
+    <span style="font-family:var(--font-sans);font-weight:600;font-size:var(--text-sm);color:var(--text-primary)">Comment Queue</span>
     <Badge variant="neutral">{items.length}</Badge>
     <div style="margin-left:auto">
       <IconButton icon="x" title="Close" size={24} onclick={onClose} />
@@ -49,11 +49,11 @@
   <div style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px">
     {#if items.length === 0}
       <div style="font-family:var(--font-sans);font-size:var(--text-sm);color:var(--text-tertiary);text-align:center;padding:24px 8px">
-        Save a comment to build context for your CLI agent.
+        Save a comment to build a queue for your CLI agent.
       </div>
     {:else}
       {#each items as item (item.id)}
-        <ContextItem {item} {onRemove} onCopy={copyOne} />
+        <QueueItem {item} {onRemove} onCopy={copyOne} />
       {/each}
     {/if}
   </div>

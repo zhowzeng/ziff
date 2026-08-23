@@ -17,7 +17,7 @@ Source of truth: `src/lib/components/` in this repo (Svelte 5, runes).
 - Feedback — Badge
 - Comments — Avatar, CommentThread (+ CommentItem)
 - Diff — FileTree (+ FileTreeRow), DiffLine (+ DiffHunk, DiffLineSplit)
-- Desktop-app chrome — Dropdown, ContextDrawer (+ ContextItem), ContextFab, FileHeader, FetchButton, SettingsModal, EmptyState
+- Desktop-app chrome — Dropdown, QueueDrawer (+ QueueItem), QueueFab, FileHeader, FetchButton, SettingsModal, EmptyState
 - Other primitives — Modal, Toast/ToastStack, Checkbox, Switch, Tooltip, Segmented
 
 `Segmented` is one reusable component covering what would otherwise be two near-identical toggles (the topbar's diff-mode toggle, the diff panel's unified/split view toggle).
@@ -26,7 +26,7 @@ Worth knowing: `CommentThread`'s `comments` items use a plain `text: string` fie
 
 ## Reference implementation
 
-`src/routes/review/+page.svelte` is the full reference screen: topbar with project/branch `Dropdown`s, a diff-mode `Segmented` toggle, and a `FetchButton`; a diff panel with a `FileHeader`, a Unified/Split `Segmented` view toggle, and gutter drag-to-select-range commenting (mouse down on a line's gutter, drag across lines, release to open a comment thread anchored to that range); a `ContextDrawer` that lists comments saved for a CLI agent; and a `ContextFab` that toggles it and shows the saved count. Submitting any comment saves it to context and opens the drawer automatically.
+`src/routes/review/+page.svelte` is the full reference screen: topbar with repo/branch `Dropdown`s, a diff-mode `Segmented` toggle, and a `FetchButton`; a diff panel with a `FileHeader`, a Unified/Split `Segmented` view toggle, and gutter drag-to-select-range commenting (mouse down on a line's gutter, drag across lines, release to open a comment anchored to that range); a `QueueDrawer` that lists comments saved to the Comment Queue for a CLI agent; and a `QueueFab` that toggles it and shows the saved count. Submitting any comment saves it to the queue and opens the drawer automatically.
 
 Quirk to know: in Split view there's no gutter-drag, so the only way to reopen a closed thread there is the per-line hover "+" button — in Unified view that same button is superseded by the gutter drag handle and never renders.
 

@@ -11,13 +11,13 @@
   import Segmented from "$lib/components/Segmented.svelte";
   import FetchButton from "$lib/components/FetchButton.svelte";
   import FileHeader from "$lib/components/FileHeader.svelte";
-  import ContextDrawer from "$lib/components/ContextDrawer.svelte";
-  import ContextFab from "$lib/components/ContextFab.svelte";
+  import QueueDrawer from "$lib/components/QueueDrawer.svelte";
+  import QueueFab from "$lib/components/QueueFab.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import SettingsModal, { DEFAULT_SETTINGS } from "$lib/components/SettingsModal.svelte";
   import { toast } from "$lib/stores/toast.svelte.js";
 
-  const PROJECTS = [
+  const REPOS = [
     { value: "goose", label: "goose", meta: "~/dev/goose" },
     { value: "goose-mcp-extensions", label: "goose-mcp-extensions", meta: "~/dev/goose-mcp-extensions" },
     { value: "block-design-system", label: "block-design-system", meta: "~/dev/block-design-system" },
@@ -26,7 +26,7 @@
     { value: "feature/xlsx-api-upgrade", label: "feature/xlsx-api-upgrade", meta: "目前分支 · 領先 main 3 個 commit" },
     { value: "main", label: "main", meta: "落後 2 個 commit" },
     { value: "develop", label: "develop" },
-    { value: "feature/mcp-context-drawer", label: "feature/mcp-context-drawer" },
+    { value: "feature/mcp-comment-queue", label: "feature/mcp-comment-queue" },
   ];
   const DIFF_MODES = [
     { value: "unstaged", label: "Unstaged" },
@@ -94,16 +94,16 @@
     return paths;
   }
 
-  let project = $state("goose");
+  let repo = $state("goose");
   let branch = $state("feature/xlsx-api-upgrade");
   let diffMode = $state("unstaged");
   let view = $state<"unified" | "split">("unified");
   let selected = $state("src/xlsx_tool.rs");
   let replyValue = $state("");
-  let contextOpen = $state(false);
-  let savedContext = $state<{ id: string; file: string; lineStart: number; lineEnd?: number; text: string }[]>([]);
+  let queueOpen = $state(false);
+  let commentQueue = $state<{ id: string; file: string; lineStart: number; lineEnd?: number; text: string }[]>([]);
 
-  let scenario = $state<"normal" | "no-project" | "no-diff">("normal");
+  let scenario = $state<"normal" | "no-repo" | "no-diff">("normal");
   let showAllFiles = $state(false);
   let fileFilter = $state("");
   let settingsOpen = $state(false);
@@ -188,12 +188,12 @@
     return l.newNo ?? l.oldNo ?? 0;
   }
 
-  function addToContext(item: { file: string; lineStart: number; lineEnd?: number; text: string }) {
-    savedContext = [...savedContext, { id: crypto.randomUUID(), ...item }];
-    contextOpen = true;
+  function addToQueue(item: { file: string; lineStart: number; lineEnd?: number; text: string }) {
+    commentQueue = [...commentQueue, { id: crypto.randomUUID(), ...item }];
+    queueOpen = true;
   }
-  function removeFromContext(id: string) {
-    savedContext = savedContext.filter((i) => i.id !== id);
+  function removeFromQueue(id: string) {
+    commentQueue = commentQueue.filter((i) => i.id !== id);
   }
 
   function submitFixedComment() {
@@ -207,7 +207,7 @@
         fixedComment.text = t;
       },
     };
-    addToContext({ file: selected, lineStart: rangeLineNo(commentHereIndex), text });
+    addToQueue({ file: selected, lineStart: rangeLineNo(commentHereIndex), text });
     replyValue = "";
   }
 
@@ -226,7 +226,7 @@
         },
       },
     ];
-    addToContext({ file: selected, lineStart, lineEnd, text });
+    addToQueue({ file: selected, lineStart, lineEnd, text });
     replyValue = "";
   }
 
@@ -288,7 +288,7 @@
 <div class="app">
   <div class="demo-scenario">
     <span class="demo-scenario-label">DEMO STATE</span>
-    {#each [["normal", "一般"], ["no-project", "剛安裝"], ["no-diff", "無變更"]] as [v, l] (v)}
+    {#each [["normal", "一般"], ["no-repo", "剛安裝"], ["no-diff", "無變更"]] as [v, l] (v)}
       <button class="demo-scenario-btn" class:active={scenario === v} onclick={() => (scenario = v as typeof scenario)}>{l}</button>
     {/each}
   </div>
@@ -300,12 +300,12 @@
     </div>
     <Dropdown
       icon="folder"
-      label="Project"
-      options={PROJECTS}
-      value={project}
-      onChange={(v) => (project = v)}
-      onAddNew={() => toast("Add-project folder picker isn't wired up yet")}
-      addNewLabel="Add project…"
+      label="Repo"
+      options={REPOS}
+      value={repo}
+      onChange={(v) => (repo = v)}
+      onAddNew={() => toast("Add-repo folder picker isn't wired up yet")}
+      addNewLabel="Add repo…"
       width={260}
     />
     <Icon name="chevron-right" size={12} color="var(--border-default)" />
@@ -322,16 +322,16 @@
       <div class="sidebar-filter">
         <div class="filter-input-wrap">
           <Icon name="search" size={13} color="var(--text-tertiary)" class="filter-icon" />
-          <Input placeholder="Filter files…" size="sm" bind:value={fileFilter} disabled={scenario === "no-project"} style="padding-left:26px" />
+          <Input placeholder="Filter files…" size="sm" bind:value={fileFilter} disabled={scenario === "no-repo"} style="padding-left:26px" />
         </div>
         <label class="show-all-label">
-          <input type="checkbox" bind:checked={showAllFiles} disabled={scenario === "no-project"} />
+          <input type="checkbox" bind:checked={showAllFiles} disabled={scenario === "no-repo"} />
           顯示所有檔案
         </label>
       </div>
       <div class="sidebar-tree">
-        {#if scenario === "no-project"}
-          <EmptyState size="sm" icon="folder-git-2" title="尚未選擇 project" hint="從上方選擇 project 與 branch 後，這裡會顯示變更的檔案。" />
+        {#if scenario === "no-repo"}
+          <EmptyState size="sm" icon="folder-git-2" title="尚未選擇 repo" hint="從上方選擇 repo 與 branch 後，這裡會顯示變更的檔案。" />
         {:else if sidebarEmptyState === "no-diff"}
           <EmptyState size="sm" icon="git-compare" title="此分支沒有變更" hint="切換到有變更的分支，或勾選「顯示所有檔案」瀏覽整個專案。" />
         {:else if sidebarEmptyState === "no-match"}
@@ -346,9 +346,9 @@
       </button>
     </aside>
 
-    {#if scenario === "no-project"}
+    {#if scenario === "no-repo"}
       <main class="diff-panel diff-panel-empty">
-        <EmptyState size="md" icon="folder-git-2" title="選擇一個 project 開始" hint="從左上角選擇 project 與 branch，即可檢視變更並開始留言。" />
+        <EmptyState size="md" icon="folder-git-2" title="選擇一個 repo 開始" hint="從左上角選擇 repo 與 branch，即可檢視變更並開始留言。" />
       </main>
     {:else if scenario === "no-diff"}
       <main class="diff-panel diff-panel-empty">
@@ -399,12 +399,12 @@
       </main>
     {/if}
 
-    {#if contextOpen}
-      <ContextDrawer items={savedContext} onRemove={removeFromContext} onClose={() => (contextOpen = false)} />
+    {#if queueOpen}
+      <QueueDrawer items={commentQueue} onRemove={removeFromQueue} onClose={() => (queueOpen = false)} />
     {/if}
   </div>
 
-  <ContextFab count={savedContext.length} open={contextOpen} onclick={() => (contextOpen = !contextOpen)} />
+  <QueueFab count={commentQueue.length} open={queueOpen} onclick={() => (queueOpen = !queueOpen)} />
   <SettingsModal open={settingsOpen} onClose={() => (settingsOpen = false)} {settings} onChange={(s) => (settings = s)} />
 </div>
 

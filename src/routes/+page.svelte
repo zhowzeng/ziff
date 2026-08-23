@@ -76,7 +76,7 @@
     <div class="row" style="gap: var(--space-3); flex-wrap: wrap">
       <Button variant="secondary" onclick={() => (modalOpen = true)}>Open modal</Button>
       <Button variant="secondary" onclick={() => toast('Synced 2m ago')}>Toast — default</Button>
-      <Button variant="secondary" onclick={() => toast('Comment saved to context', { variant: 'success' })}>Toast — success</Button>
+      <Button variant="secondary" onclick={() => toast('Comment saved to queue', { variant: 'success' })}>Toast — success</Button>
       <Button variant="secondary" onclick={() => toast('Sync failed — check connection', { variant: 'danger' })}>Toast — danger</Button>
       <Tooltip text="Copies all saved comments for your CLI agent">
         <IconButton icon="info" title="What does this do?" />

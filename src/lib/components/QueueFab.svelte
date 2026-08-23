@@ -6,8 +6,8 @@
 
 <button
   {onclick}
-  title="Saved context"
-  aria-label="Saved context"
+  title="Comment Queue"
+  aria-label="Comment Queue"
   style={`position:fixed;right:20px;bottom:20px;width:52px;height:52px;border-radius:50%;
     background:${open ? 'var(--accent-emphasis)' : 'var(--gray-0)'};box-shadow:var(--shadow-lg);
     border:${open ? 'none' : '1px solid var(--border-default)'};
