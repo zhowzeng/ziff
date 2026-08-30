@@ -30,3 +30,7 @@ _Avoid_: Comment thread, thread, reply
 
 **Context line**:
 A git diff term (unchanged line shown for surrounding context) — general to diffs, not a Ziff-specific concept. Not `Comment Queue`.
+
+**File View**:
+Viewing a file's complete current (worktree) content, with no diff highlighting — separate from the diff view shown for changed files.
+_Avoid_: File browser, source view
