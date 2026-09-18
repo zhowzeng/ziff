@@ -24,6 +24,8 @@
   /** @type {Props} */
   let { items, onRemove, onClose } = $props();
 
+  // Deliberately ASCII-only (not helpers.ts' rangeLabel, which uses an en dash) —
+  // this text is copied straight into a CLI agent's prompt.
   /** @param {QueueItemData} item */
   function formatItem(item) {
     const range = item.lineEnd && item.lineEnd !== item.lineStart ? `L${item.lineStart}-L${item.lineEnd}` : `L${item.lineStart}`;

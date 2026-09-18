@@ -1,4 +1,4 @@
-import type { Branch, DiffLine, TreeNode } from './types';
+import type { Branch, DiffHunk, DiffLine, TreeNode } from './types';
 
 export function pruneToChanged(nodes: TreeNode[]): TreeNode[] {
   return nodes.reduce<TreeNode[]>((acc, n) => {
@@ -59,6 +59,32 @@ export function rangeLabel(lineStart: number, lineEnd?: number) {
 // A line with its position among all lines of the file being reviewed (flattened
 // across hunks), used to anchor comment threads and gutter drag-selection.
 export type IndexedLine = DiffLine & { idx: number };
+
+// Same, but keeping the owning hunk: line numbers are only contiguous within a
+// hunk, so a selection may not run across a hunk boundary.
+export type FlatLine = { line: DiffLine; idx: number; hunk: number };
+
+export function flattenHunks(hunks: DiffHunk[]): FlatLine[] {
+  const out: FlatLine[] = [];
+  let idx = 0;
+  hunks.forEach((h, hunk) => {
+    for (const line of h.lines) out.push({ line, idx: idx++, hunk });
+  });
+  return out;
+}
+
+// Line numbers for a selected idx range. Both ends are read off the same side of
+// the diff — the new side when the selection touches it at all, the old side for a
+// pure-deletion selection — so the range can never come out reversed.
+export function lineRange(lines: FlatLine[], lo: number, hi: number): { lineStart: number; lineEnd?: number } {
+  const selected = lines.slice(lo, hi + 1).map((f) => f.line);
+  const isNo = (n: number | null): n is number => n !== null;
+  const newNos = selected.map((l) => l.newNo).filter(isNo);
+  const nos = newNos.length ? newNos : selected.map((l) => l.oldNo).filter(isNo);
+  const lineStart = nos[0] ?? 0;
+  const lineEnd = nos[nos.length - 1] ?? lineStart;
+  return { lineStart, lineEnd: lineEnd === lineStart ? undefined : lineEnd };
+}
 
 export type SplitSide = { kind: DiffLine['kind']; no: number | null; text: string; idx: number; commentable?: boolean } | null;
 

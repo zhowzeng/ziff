@@ -10,16 +10,19 @@ pub fn list_repos() -> Result<Vec<Repo>, String> {
             id: "goose".into(),
             name: "goose".into(),
             path: "~/dev/goose".into(),
+            default_branch: "main".into(),
         },
         Repo {
             id: "goose-mcp-extensions".into(),
             name: "goose-mcp-extensions".into(),
             path: "~/dev/goose-mcp-extensions".into(),
+            default_branch: "main".into(),
         },
         Repo {
             id: "block-design-system".into(),
             name: "block-design-system".into(),
             path: "~/dev/block-design-system".into(),
+            default_branch: "main".into(),
         },
     ])
 }

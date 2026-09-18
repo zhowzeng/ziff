@@ -6,6 +6,7 @@ export interface Repo {
   id: string;
   name: string;
   path: string;
+  defaultBranch: string;
 }
 
 export interface Branch {

@@ -3,6 +3,7 @@
   import Textarea from '$lib/components/Textarea.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import CommentItem from './CommentItem.svelte';
+  import { rangeLabel } from '../helpers';
 
   let {
     file,
@@ -14,7 +15,7 @@
     onClose,
   } = $props();
 
-  let range = $derived(lineEnd && lineEnd !== lineStart ? `L${lineStart}–L${lineEnd}` : `L${lineStart}`);
+  let range = $derived(rangeLabel(lineStart, lineEnd));
 </script>
 
 <div style="border:1px solid var(--border-default);border-radius:var(--radius-lg);background:var(--gray-0);box-shadow:var(--shadow-md);overflow:hidden;max-width:560px;position:relative">

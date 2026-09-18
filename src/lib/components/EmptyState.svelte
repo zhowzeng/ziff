@@ -1,7 +1,7 @@
 <script>
   import Icon from './Icon.svelte';
 
-  let { icon, title, hint, size = 'md' } = $props();
+  let { icon, title, hint = undefined, size = 'md' } = $props();
 
   let iconSize = $derived(size === 'md' ? 28 : 22);
   let titleSize = $derived(size === 'md' ? 'var(--text-md)' : 'var(--text-sm)');

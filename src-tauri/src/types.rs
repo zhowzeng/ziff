@@ -6,6 +6,8 @@ pub struct Repo {
     pub id: String,
     pub name: String,
     pub path: String,
+    /// Base branch a Branch-mode diff is compared against by default.
+    pub default_branch: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
