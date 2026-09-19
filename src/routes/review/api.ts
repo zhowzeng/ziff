@@ -10,6 +10,10 @@ export function addRepo(path: string) {
   return invoke<Repo>('add_repo', { path });
 }
 
+export function removeRepo(id: string) {
+  return invoke<void>('remove_repo', { id });
+}
+
 /** Native folder picker. Resolves to null when the reviewer cancels. */
 export async function pickRepoFolder() {
   const picked = await open({ directory: true, multiple: false, title: 'Add repo' });

@@ -16,6 +16,8 @@
   import QueueDrawer from "./components/QueueDrawer.svelte";
   import QueueFab from "./components/QueueFab.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
+  import Modal from "$lib/components/Modal.svelte";
+  import Button from "$lib/components/Button.svelte";
   import SettingsModal, { DEFAULT_SETTINGS } from "$lib/components/SettingsModal.svelte";
   import { toast } from "$lib/toast/state.svelte";
   import { reviewState } from "./state.svelte";
@@ -34,7 +36,7 @@
     type FlatLine,
     type IndexedLine,
   } from "./helpers";
-  import type { DiffLine as DiffLineData, DiffMode } from "./types";
+  import type { DiffLine as DiffLineData, DiffMode, Repo } from "./types";
 
   const DIFF_MODES = [
     { value: "unstaged", label: "Unstaged" },
@@ -53,6 +55,7 @@
   let showAllFiles = $state(false);
   let fileFilter = $state("");
   let settingsOpen = $state(false);
+  let removeTarget = $state<Repo | null>(null);
   let settings = $state({ ...DEFAULT_SETTINGS });
 
   let repoOptions = $derived(reviewState.repos.map((r) => ({ value: r.id, label: r.name, meta: r.path })));
@@ -203,6 +206,22 @@
     closeThread();
     reviewState.addRepo();
   }
+  // Removing a Repo discards its Comment Queue (docs/decisions/0009), so it asks first
+  // — but only when there is something to lose.
+  function requestRemoveRepo(id: string) {
+    const repo = reviewState.repos.find((r) => r.id === id);
+    if (!repo) return;
+    if (commentQueue.itemsFor(id).length === 0) {
+      removeRepo(repo.id);
+      return;
+    }
+    removeTarget = repo;
+  }
+  function removeRepo(id: string) {
+    removeTarget = null;
+    closeThread();
+    reviewState.removeRepo(id);
+  }
   function selectRepo(id: string) {
     closeThread();
     reviewState.selectRepo(id);
@@ -291,6 +310,7 @@
       onChange={selectRepo}
       onAddNew={addRepo}
       addNewLabel="Add repo…"
+      optionAction={{ icon: "trash-2", title: "從 Ziff 移除（不會刪除資料夾）", onAction: requestRemoveRepo }}
       placeholder="Select repo…"
       width={260}
     />
@@ -480,6 +500,21 @@
 
   <QueueFab count={queueItems.length} open={commentQueue.open} onclick={() => (commentQueue.open = !commentQueue.open)} />
   <SettingsModal open={settingsOpen} onClose={() => (settingsOpen = false)} {settings} onChange={(s) => (settings = s)} />
+
+  <Modal open={removeTarget !== null} onClose={() => (removeTarget = null)} title="移除 repo？" width={400}>
+    {#if removeTarget}
+      <p class="modal-text">
+        <strong>{removeTarget.name}</strong> 會從 Ziff 的清單移除，資料夾本身不會被刪除，之後可以再加回來。
+      </p>
+      <p class="modal-text modal-warning">
+        這會一併丟掉 {commentQueue.itemsFor(removeTarget.id).length} 則還沒交出去的 comment。
+      </p>
+    {/if}
+    {#snippet footer()}
+      <Button size="sm" onclick={() => (removeTarget = null)}>取消</Button>
+      <Button variant="danger" size="sm" onclick={() => removeTarget && removeRepo(removeTarget.id)}>移除</Button>
+    {/snippet}
+  </Modal>
 </div>
 
 <style>
@@ -535,6 +570,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .modal-text {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .modal-warning {
+    margin-top: 10px;
+    color: var(--danger-emphasis);
   }
   .topbar-vs {
     font-family: var(--font-sans);

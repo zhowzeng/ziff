@@ -17,6 +17,7 @@ pub fn run() {
             greet,
             commands::list_repos,
             commands::add_repo,
+            commands::remove_repo,
             commands::list_branches,
             commands::get_file_tree,
             commands::get_file_diff,
