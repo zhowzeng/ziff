@@ -1,4 +1,6 @@
 <script>
+  import Icon from '$lib/components/Icon.svelte';
+
   const kinds = {
     add: { bg: 'var(--diff-add-bg)', bar: 'var(--diff-add-bg-strong)', text: 'var(--diff-add-text)', prefix: '+' },
     del: { bg: 'var(--diff-remove-bg)', bar: 'var(--diff-remove-bg-strong)', text: 'var(--diff-remove-text)', prefix: '-' },
@@ -15,6 +17,7 @@
    * @property {(e: MouseEvent) => void} [onAddComment]
    * @property {number} index
    * @property {boolean} [selected]
+   * @property {boolean} [commented]
    * @property {(index: number) => void} [onGutterDown]
    * @property {(index: number) => void} [onGutterEnter]
    */
@@ -29,6 +32,7 @@
     onAddComment,
     index,
     selected = false,
+    commented = false,
     onGutterDown,
     onGutterEnter,
   } = $props();
@@ -60,6 +64,14 @@
   {/if}
   <span style="width:36px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px">{oldNo ?? ''}</span>
   <span style="width:36px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:8px">{newNo ?? ''}</span>
+  <span
+    title={commented ? '這一行已留言' : undefined}
+    style="width:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;user-select:none"
+  >
+    {#if commented}
+      <Icon name="message-square" size={12} color="var(--accent-emphasis)" />
+    {/if}
+  </span>
   <span style={`width:14px;color:${k.text};user-select:none`}>{k.prefix}</span>
   <span style={`color:${k.text};white-space:pre`}>{@render children?.()}</span>
   {#if commentable && hover && !onGutterDown}

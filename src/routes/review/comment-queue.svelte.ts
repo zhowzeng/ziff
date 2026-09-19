@@ -1,25 +1,67 @@
 // Comment Queue is frontend-only state (docs/decisions/0006) — it isn't sent to
 // the backend and clears when the app closes.
+//
+// It is also the only place a comment's text lives: the diff's comment thread reads
+// back out of here rather than keeping its own copy, so an edit in the thread and the
+// text handed to the CLI agent can't drift apart.
 
-export interface QueueItem {
+import type { CommentAnchor } from './helpers';
+
+export interface QueueItem extends CommentAnchor {
   id: string;
   file: string;
-  lineStart: number;
-  lineEnd?: number;
   text: string;
+  createdAt: number;
+}
+
+function sameAnchor(a: CommentAnchor, b: CommentAnchor) {
+  return (
+    a.side === b.side &&
+    a.lineStart === b.lineStart &&
+    (a.lineEnd ?? a.lineStart) === (b.lineEnd ?? b.lineStart)
+  );
 }
 
 class CommentQueue {
   items = $state<QueueItem[]>([]);
   open = $state(false);
 
-  add(item: Omit<QueueItem, 'id'>) {
-    this.items.push({ id: crypto.randomUUID(), ...item });
+  add(item: Omit<QueueItem, 'id' | 'createdAt'>) {
+    this.items.push({ id: crypto.randomUUID(), createdAt: Date.now(), ...item });
     this.open = true;
   }
 
   remove(id: string) {
     this.items = this.items.filter((i) => i.id !== id);
+  }
+
+  update(id: string, text: string) {
+    const item = this.items.find((i) => i.id === id);
+    if (item) item.text = text;
+  }
+
+  // The comment already anchored to this exact range, if there is one. Ziff is a
+  // solo-review tool with one comment per range (docs/decisions/0002), so reopening a
+  // commented range edits that comment instead of starting a second one.
+  find(file: string, anchor: CommentAnchor): QueueItem | null {
+    return this.items.find((i) => i.file === file && sameAnchor(i, anchor)) ?? null;
+  }
+
+  // Every line of `file` covered by a comment, keyed "<side>:<number>", for marking
+  // commented lines in the diff. Old and new line numbers are each unique within a
+  // file, so the side prefix is enough to tell the two numbering spaces apart.
+  //
+  // A deleted line swept up in a selection that also touched the new side isn't
+  // covered: the anchor counts in new line numbers, which that line has none of.
+  lineKeys(file: string): Set<string> {
+    const keys = new Set<string>();
+    for (const item of this.items) {
+      if (item.file !== file) continue;
+      for (let n = item.lineStart; n <= (item.lineEnd ?? item.lineStart); n++) {
+        keys.add(`${item.side}:${n}`);
+      }
+    }
+    return keys;
   }
 }
 

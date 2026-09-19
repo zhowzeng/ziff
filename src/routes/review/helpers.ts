@@ -56,6 +56,12 @@ export function rangeLabel(lineStart: number, lineEnd?: number) {
   return lineEnd && lineEnd !== lineStart ? `L${lineStart}–L${lineEnd}` : `L${lineStart}`;
 }
 
+// Comments now outlive the thread that created them, so they show the wall-clock time
+// they were written rather than a relative label that would silently go stale.
+export function formatTime(ts: number) {
+  return new Date(ts).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 // A line with its position among all lines of the file being reviewed (flattened
 // across hunks), used to anchor comment threads and gutter drag-selection.
 export type IndexedLine = DiffLine & { idx: number };
@@ -73,17 +79,27 @@ export function flattenHunks(hunks: DiffHunk[]): FlatLine[] {
   return out;
 }
 
+// Where a comment is anchored. `side` records which of the diff's two numbering
+// spaces `lineStart`/`lineEnd` are counted in, so a range over old line numbers can
+// never be mistaken for one over new line numbers that happens to share a number.
+export interface CommentAnchor {
+  lineStart: number;
+  lineEnd?: number;
+  side: 'new' | 'old';
+}
+
 // Line numbers for a selected idx range. Both ends are read off the same side of
 // the diff — the new side when the selection touches it at all, the old side for a
 // pure-deletion selection — so the range can never come out reversed.
-export function lineRange(lines: FlatLine[], lo: number, hi: number): { lineStart: number; lineEnd?: number } {
+export function lineRange(lines: FlatLine[], lo: number, hi: number): CommentAnchor {
   const selected = lines.slice(lo, hi + 1).map((f) => f.line);
   const isNo = (n: number | null): n is number => n !== null;
   const newNos = selected.map((l) => l.newNo).filter(isNo);
-  const nos = newNos.length ? newNos : selected.map((l) => l.oldNo).filter(isNo);
+  const useNew = newNos.length > 0;
+  const nos = useNew ? newNos : selected.map((l) => l.oldNo).filter(isNo);
   const lineStart = nos[0] ?? 0;
   const lineEnd = nos[nos.length - 1] ?? lineStart;
-  return { lineStart, lineEnd: lineEnd === lineStart ? undefined : lineEnd };
+  return { lineStart, lineEnd: lineEnd === lineStart ? undefined : lineEnd, side: useNew ? 'new' : 'old' };
 }
 
 export type SplitSide = { kind: DiffLine['kind']; no: number | null; text: string; idx: number; commentable?: boolean } | null;
