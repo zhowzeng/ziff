@@ -1,8 +1,19 @@
 import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import type { Branch, DiffHunk, DiffSpec, FetchResult, FileContent, Repo, TreeNode } from './types';
 
 export function listRepos() {
   return invoke<Repo[]>('list_repos');
+}
+
+export function addRepo(path: string) {
+  return invoke<Repo>('add_repo', { path });
+}
+
+/** Native folder picker. Resolves to null when the reviewer cancels. */
+export async function pickRepoFolder() {
+  const picked = await open({ directory: true, multiple: false, title: 'Add repo' });
+  return typeof picked === 'string' ? picked : null;
 }
 
 export function listBranches(repoId: string) {
