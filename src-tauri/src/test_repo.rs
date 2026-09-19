@@ -5,6 +5,11 @@
 //! own git settings can't change what a fixture produces.
 
 pub fn git(dir: &std::path::Path, date: &str, args: &[&str]) {
+    git_stdout(dir, date, args);
+}
+
+/// What the git CLI printed -- for the tests that hold Ziff's own diff up against it.
+pub fn git_stdout(dir: &std::path::Path, date: &str, args: &[&str]) -> String {
     let out = std::process::Command::new("git")
         .args(args)
         .current_dir(dir)
@@ -23,6 +28,7 @@ pub fn git(dir: &std::path::Path, date: &str, args: &[&str]) {
         "git {args:?} failed: {}",
         String::from_utf8_lossy(&out.stderr)
     );
+    String::from_utf8(out.stdout).expect("git printed utf-8")
 }
 
 pub const DATE: &str = "2020-01-01T00:00:00Z";

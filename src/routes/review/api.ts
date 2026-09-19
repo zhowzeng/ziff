@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import type { BranchList, DiffHunk, DiffSpec, FetchResult, FileContent, Repo, TreeNode } from './types';
+import type { BranchList, DiffSpec, FetchResult, FileContent, FileDiff, Repo, TreeNode } from './types';
 
 export function listRepos() {
   return invoke<Repo[]>('list_repos');
@@ -29,7 +29,7 @@ export function getFileTree(spec: DiffSpec) {
 }
 
 export function getFileDiff(spec: DiffSpec, path: string) {
-  return invoke<DiffHunk[]>('get_file_diff', { spec, path });
+  return invoke<FileDiff>('get_file_diff', { spec, path });
 }
 
 export function getFileContent(repoId: string, path: string) {

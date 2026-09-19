@@ -62,6 +62,13 @@ export interface DiffHunk {
   lines: DiffLine[];
 }
 
+/** One file's line-level diff between the two sides of a Diff Mode. */
+export interface FileDiff {
+  hunks: DiffHunk[];
+  /** A file with no lines to diff, so the diff view says so instead of showing nothing. */
+  binary: boolean;
+}
+
 export interface FileContent {
   lines: string[];
   /** A file Ziff cannot number by line, so File View says so instead of showing it. */
