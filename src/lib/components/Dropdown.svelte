@@ -9,6 +9,13 @@
    */
 
   /**
+   * @typedef {Object} OptionAction
+   * @property {string} icon
+   * @property {string} title
+   * @property {(value: string) => void} onAction
+   */
+
+  /**
    * @typedef {Object} Props
    * @property {string} [icon]
    * @property {string} [label]
@@ -18,12 +25,13 @@
    * @property {(value: string) => void} onChange
    * @property {number} [width]
    * @property {string} [placeholder]
+   * @property {OptionAction} [optionAction]
    * @property {() => void} [onAddNew]
    * @property {string} [addNewLabel]
    */
 
   /** @type {Props} */
-  let { icon, label, sublabel, options, value, onChange, width = 240, onAddNew, addNewLabel = 'Add new…', placeholder = '' } = $props();
+  let { icon, label, sublabel, options, value, onChange, width = 240, onAddNew, addNewLabel = 'Add new…', placeholder = '', optionAction } = $props();
 
   let open = $state(false);
   let root = $state();
@@ -96,6 +104,21 @@
               <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)">{o.meta}</div>
             {/if}
           </div>
+          {#if optionAction}
+            <!-- The caller says what this does; the dropdown only gives it a place to sit. -->
+            <button
+              class="option-action"
+              title={optionAction.title}
+              onclick={(e) => {
+                e.stopPropagation();
+                open = false;
+                optionAction.onAction(o.value);
+              }}
+              style="margin-left:auto;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;border:none;background:transparent;border-radius:var(--radius-sm);cursor:pointer"
+            >
+              <Icon name={optionAction.icon} size={13} color="var(--text-tertiary)" />
+            </button>
+          {/if}
         </div>
       {/each}
       {#if onAddNew}
@@ -134,6 +157,16 @@
   .option:hover,
   .option.selected {
     background: var(--bg-subtle);
+  }
+  .option-action {
+    opacity: 0;
+  }
+  .option:hover .option-action,
+  .option-action:focus-visible {
+    opacity: 1;
+  }
+  .option-action:hover {
+    background: var(--border-default);
   }
   .divider {
     height: 1px;
