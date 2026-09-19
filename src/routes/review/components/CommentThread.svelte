@@ -11,11 +11,13 @@
     lineEnd,
     comments,
     replyValue = $bindable(''),
-    onComment,
+    onAddToQueue,
+    onCopyNow,
     onClose,
   } = $props();
 
   let range = $derived(rangeLabel(lineStart, lineEnd));
+  let canSubmit = $derived(Boolean(replyValue && replyValue.trim()));
 </script>
 
 <div style="border:1px solid var(--border-default);border-radius:var(--radius-lg);background:var(--gray-0);box-shadow:var(--shadow-md);overflow:hidden;max-width:560px;position:relative">
@@ -52,8 +54,12 @@
       <Textarea placeholder="Write a comment" rows={2} bind:value={replyValue} />
       <div style="display:flex;justify-content:flex-end;align-items:center">
         <div style="display:flex;gap:8px">
-          <Button variant="primary" size="sm" onclick={onComment} disabled={!replyValue || !replyValue.trim()}>
-            Add comment
+          <!-- Queue vs Copy Now is chosen per comment, at submit (docs/decisions/0001). -->
+          <Button variant="secondary" size="sm" onclick={onCopyNow} disabled={!canSubmit}>
+            Copy Now
+          </Button>
+          <Button variant="primary" size="sm" onclick={onAddToQueue} disabled={!canSubmit}>
+            Add to Queue
           </Button>
         </div>
       </div>

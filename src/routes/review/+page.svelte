@@ -23,6 +23,7 @@
     allDirPaths,
     branchMeta,
     flattenHunks,
+    formatForAgent,
     formatTime,
     lineRange,
     pairHunkLines,
@@ -150,10 +151,25 @@
     );
   }
 
-  function submitComment() {
+  function addToQueue() {
     if (!replyValue.trim() || !threadRange || !reviewState.selectedFile) return;
     commentQueue.add({ file: reviewState.selectedFile, ...threadRange, text: replyValue.trim() });
     replyValue = "";
+  }
+
+  // Copy Now is used-once (docs/decisions/0001): it never touches the Comment Queue, so
+  // the thread closes instead of reopening onto a saved comment there is none of.
+  async function copyNow() {
+    if (!replyValue.trim() || !threadRange || !reviewState.selectedFile) return;
+    const text = formatForAgent({ file: reviewState.selectedFile, ...threadRange, text: replyValue.trim() });
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      toast(`複製到剪貼簿失敗：${e}`, { variant: "danger" });
+      return;
+    }
+    closeThread();
+    toast("已複製這則評論", { variant: "success" });
   }
 
   function selectRepo(id: string) {
@@ -222,7 +238,8 @@
         lineEnd={threadRange?.lineEnd}
         comments={threadComments}
         bind:replyValue
-        onComment={submitComment}
+        onAddToQueue={addToQueue}
+        onCopyNow={copyNow}
         onClose={closeThread}
       />
     </div>
