@@ -5,7 +5,7 @@ Ziff is a desktop app for reviewing local git diffs — reading changed files, l
 ## Language
 
 **Comment Queue**:
-The list of comments a reviewer has saved to hand off to a CLI coding agent later, in bulk. Comments are added one at a time (via the "Add to Queue" choice at submit) and reviewed/copied together.
+The list of comments a reviewer has saved to hand off to a CLI coding agent later, in bulk — one list per Repo, since a comment belongs to the Repo it was written in and is only ever handed off alongside that Repo's others. Comments are added one at a time (via the "Add to Queue" choice at submit) and reviewed/copied together.
 _Avoid_: Context, Context Kit, Queue (alone), saved context
 
 **Copy Now**:
