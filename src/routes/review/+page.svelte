@@ -416,7 +416,7 @@
     {:else}
       <main class="diff-panel">
         <div class="diff-panel-header">
-          <div class="file-header-wrap"><FileHeader path={reviewState.selectedFile} /></div>
+          <div class="file-header-wrap"><FileHeader path={reviewState.selectedFile} renamedFrom={reviewState.selectedRenamedFrom} /></div>
           {#if !isFileView}
             <div class="view-toggle-wrap"><Segmented value={reviewState.view} onChange={(v) => (reviewState.view = v as typeof reviewState.view)} options={VIEW_MODES} /></div>
           {/if}

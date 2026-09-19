@@ -56,6 +56,14 @@ class ReviewState {
 
   repo = $derived(this.repos.find((r) => r.id === this.repoId) ?? null);
 
+  // Where the selected file was before it was moved, so the file header can say so
+  // rather than leaving the reviewer to spot it.
+  selectedRenamedFrom = $derived.by(() => {
+    if (!this.selectedFile) return null;
+    const node = findFileNode(this.tree, this.selectedFile);
+    return node?.type === 'file' ? (node.renamedFrom ?? null) : null;
+  });
+
   spec = $derived.by<DiffSpec | null>(() => {
     if (!this.repoId || !this.branch) return null;
     const spec: DiffSpec = { repoId: this.repoId, branch: this.branch, diffMode: this.diffMode };

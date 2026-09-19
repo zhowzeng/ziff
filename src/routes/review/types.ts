@@ -39,7 +39,14 @@ export interface Changes {
 
 export type TreeNode =
   | { type: 'dir'; name: string; path: string; children: TreeNode[] }
-  | { type: 'file'; name: string; path: string; changes?: Changes };
+  | {
+      type: 'file';
+      name: string;
+      path: string;
+      changes?: Changes;
+      /** Where this file used to be, when it was renamed into `path`. */
+      renamedFrom: string | null;
+    };
 
 export type LineKind = 'context' | 'add' | 'del';
 

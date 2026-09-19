@@ -8,6 +8,7 @@
    * @property {string} path
    * @property {'dir'|'file'} type
    * @property {{add: number, del: number}} [changes]
+   * @property {string | null} [renamedFrom]
    * @property {TreeNode[]} [children]
    */
 

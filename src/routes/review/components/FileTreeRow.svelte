@@ -41,6 +41,11 @@
     {/if}
     <Icon name={isDir ? (isOpen ? 'folder-open' : 'folder') : fileIcon(node.name)} size={14} color="var(--text-tertiary)" />
     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{node.name}</span>
+    {#if node.renamedFrom}
+      <span title={`從 ${node.renamedFrom} 搬過來`} style="display:flex;flex-shrink:0">
+        <Icon name="corner-up-right" size={12} color="var(--text-tertiary)" />
+      </span>
+    {/if}
     {#if node.changes}
       <span style="margin-left:auto;padding-right:8px;font-family:var(--font-mono);font-size:11px">
         <span style="color:var(--diff-add-text)">+{node.changes.add} </span>

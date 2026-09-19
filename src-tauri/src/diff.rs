@@ -24,6 +24,8 @@ pub enum Side {
 #[derive(Debug, Clone)]
 pub struct ChangedFile {
     pub path: String,
+    /// Where this file used to be, when it was renamed into `path`.
+    pub old_path: Option<String>,
     pub old: Side,
     pub new: Side,
 }
@@ -110,12 +112,16 @@ fn is_file(change: &gix::object::tree::diff::ChangeDetached) -> bool {
     mode.is_blob_or_symlink()
 }
 
-/// Rename detection is off everywhere: `TreeNode::File` has no way to say "this file
-/// used to be called something else", so a rename is reported the way
-/// `git diff --no-renames` reports it -- the old path deleted, the new path added.
-fn no_rewrites() -> gix::diff::Options {
+/// Rename detection, set explicitly rather than read from the reviewer's git config, so
+/// the same Repo produces the same tree on any machine. Copies are not tracked (gix's
+/// default), so a `Rewrite` is always a rename.
+fn rewrites() -> gix::diff::Rewrites {
+    gix::diff::Rewrites::default()
+}
+
+fn tree_options() -> gix::diff::Options {
     let mut options = gix::diff::Options::default();
-    options.track_rewrites(None);
+    options.track_rewrites(Some(rewrites()));
     options
 }
 
@@ -130,7 +136,7 @@ fn unstaged(git: &gix::Repository) -> Result<Vec<ChangedFile>, Error> {
     let iter = git
         .status(gix::progress::Discard)?
         .untracked_files(gix::status::UntrackedFiles::Files)
-        .index_worktree_rewrites(None)
+        .index_worktree_rewrites(Some(rewrites()))
         .into_index_worktree_iter(Vec::new())?;
 
     let mut out = Vec::new();
@@ -155,19 +161,46 @@ fn unstaged(git: &gix::Repository) -> Result<Vec<ChangedFile>, Error> {
                     EntryStatus::IntentToAdd => Side::Missing,
                     _ => Side::Blob(entry.id),
                 };
-                out.push(ChangedFile { path, old, new });
+                out.push(ChangedFile {
+                    path,
+                    old_path: None,
+                    old,
+                    new,
+                });
             }
             Item::DirectoryContents { entry, .. } => {
                 let path = entry.rela_path.to_string();
                 out.push(ChangedFile {
                     path: path.clone(),
+                    old_path: None,
                     old: Side::Missing,
                     new: Side::Worktree(root.join(&path)),
                 });
             }
-            // Rewrite tracking is off, so a rename arrives as a deletion and an
-            // addition instead.
-            Item::Rewrite { .. } => {}
+            Item::Rewrite {
+                source,
+                dirwalk_entry,
+                ..
+            } => {
+                use gix::status::index_worktree::RewriteSource;
+                // The other variant is only ever produced for copies, which `rewrites()`
+                // does not track.
+                let RewriteSource::RewriteFromIndex {
+                    source_entry,
+                    source_rela_path,
+                    ..
+                } = source
+                else {
+                    continue;
+                };
+                let path = dirwalk_entry.rela_path.to_string();
+                out.push(ChangedFile {
+                    old: Side::Blob(source_entry.id),
+                    new: Side::Worktree(root.join(&path)),
+                    old_path: Some(source_rela_path.to_string()),
+                    path,
+                });
+            }
         }
     }
     Ok(out)
@@ -182,17 +215,19 @@ fn staged(git: &gix::Repository) -> Result<Vec<ChangedFile>, Error> {
         &head_tree,
         &index,
         None,
-        gix::status::tree_index::TrackRenames::Disabled,
+        gix::status::tree_index::TrackRenames::Given(rewrites()),
         |change, _, _| {
             use gix::diff::index::ChangeRef;
             let file = match change {
                 ChangeRef::Addition { location, id, .. } => ChangedFile {
                     path: location.to_string(),
+                    old_path: None,
                     old: Side::Missing,
                     new: Side::Blob(id.into_owned()),
                 },
                 ChangeRef::Deletion { location, id, .. } => ChangedFile {
                     path: location.to_string(),
+                    old_path: None,
                     old: Side::Blob(id.into_owned()),
                     new: Side::Missing,
                 },
@@ -203,10 +238,22 @@ fn staged(git: &gix::Repository) -> Result<Vec<ChangedFile>, Error> {
                     ..
                 } => ChangedFile {
                     path: location.to_string(),
+                    old_path: None,
                     old: Side::Blob(previous_id.into_owned()),
                     new: Side::Blob(id.into_owned()),
                 },
-                ChangeRef::Rewrite { .. } => return Ok(std::ops::ControlFlow::Continue(())),
+                ChangeRef::Rewrite {
+                    source_location,
+                    source_id,
+                    location,
+                    id,
+                    ..
+                } => ChangedFile {
+                    path: location.to_string(),
+                    old_path: Some(source_location.to_string()),
+                    old: Side::Blob(source_id.into_owned()),
+                    new: Side::Blob(id.into_owned()),
+                },
             };
             out.push(file);
             Ok::<_, std::convert::Infallible>(std::ops::ControlFlow::Continue(()))
@@ -234,7 +281,7 @@ fn branch(git: &gix::Repository, spec: &DiffSpec) -> Result<Vec<ChangedFile>, Er
     let new_tree = git.find_commit(tip.detach())?.tree()?;
 
     let mut out = Vec::new();
-    for change in git.diff_tree_to_tree(Some(&old_tree), Some(&new_tree), no_rewrites())? {
+    for change in git.diff_tree_to_tree(Some(&old_tree), Some(&new_tree), tree_options())? {
         use gix::object::tree::diff::ChangeDetached;
         // A tree-to-tree diff reports the directories along the way too. They have no
         // content to diff, and left in they would show up as files named `src`,
@@ -245,11 +292,13 @@ fn branch(git: &gix::Repository, spec: &DiffSpec) -> Result<Vec<ChangedFile>, Er
         out.push(match change {
             ChangeDetached::Addition { location, id, .. } => ChangedFile {
                 path: location.to_string(),
+                old_path: None,
                 old: Side::Missing,
                 new: Side::Blob(id),
             },
             ChangeDetached::Deletion { location, id, .. } => ChangedFile {
                 path: location.to_string(),
+                old_path: None,
                 old: Side::Blob(id),
                 new: Side::Missing,
             },
@@ -260,10 +309,22 @@ fn branch(git: &gix::Repository, spec: &DiffSpec) -> Result<Vec<ChangedFile>, Er
                 ..
             } => ChangedFile {
                 path: location.to_string(),
+                old_path: None,
                 old: Side::Blob(previous_id),
                 new: Side::Blob(id),
             },
-            ChangeDetached::Rewrite { .. } => continue,
+            ChangeDetached::Rewrite {
+                source_location,
+                source_id,
+                location,
+                id,
+                ..
+            } => ChangedFile {
+                path: location.to_string(),
+                old_path: Some(source_location.to_string()),
+                old: Side::Blob(source_id),
+                new: Side::Blob(id),
+            },
         });
     }
     Ok(out)
@@ -397,6 +458,94 @@ mod tests {
         spec.branch = "feature".into();
         let found = paths_of(&open(dir.path()), &spec);
         assert_eq!(found, ["src/deep/main.rs"]);
+    }
+
+    /// Big enough that similarity detection has something to work with.
+    fn commit_a_big_file(dir: &std::path::Path, name: &str) {
+        let body: String = (1..=200).map(|i| format!("line {i}\n")).collect();
+        write(dir, name, &body);
+        git(dir, DATE, &["add", "."]);
+        git(dir, DATE, &["commit", "-m", "big"]);
+    }
+
+    #[test]
+    fn unstaged_reports_a_moved_file_once_under_its_new_path() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        commit_a_big_file(dir.path(), "big.txt");
+        std::fs::rename(dir.path().join("big.txt"), dir.path().join("moved.txt")).expect("mv");
+
+        let found = paths_of(&open(dir.path()), &spec(DiffMode::Unstaged, None));
+        assert_eq!(found, ["moved.txt"]);
+    }
+
+    #[test]
+    fn unstaged_says_where_a_moved_file_came_from() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        commit_a_big_file(dir.path(), "big.txt");
+        std::fs::rename(dir.path().join("big.txt"), dir.path().join("moved.txt")).expect("mv");
+
+        let files = changed_files(&open(dir.path()), &spec(DiffMode::Unstaged, None)).expect("ok");
+        assert_eq!(files[0].old_path.as_deref(), Some("big.txt"));
+    }
+
+    #[test]
+    fn staged_says_where_a_moved_file_came_from() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        commit_a_big_file(dir.path(), "big.txt");
+        git(dir.path(), DATE, &["mv", "big.txt", "moved.txt"]);
+
+        let files = changed_files(&open(dir.path()), &spec(DiffMode::Staged, None)).expect("ok");
+        assert_eq!(
+            (files[0].path.as_str(), files[0].old_path.as_deref()),
+            ("moved.txt", Some("big.txt"))
+        );
+    }
+
+    #[test]
+    fn branch_says_where_a_moved_file_came_from() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        commit_a_big_file(dir.path(), "big.txt");
+        git(dir.path(), DATE, &["checkout", "-b", "feature"]);
+        git(dir.path(), DATE, &["mv", "big.txt", "moved.txt"]);
+        git(dir.path(), DATE, &["commit", "-m", "rename"]);
+
+        let mut spec = spec(DiffMode::Branch, Some("main"));
+        spec.branch = "feature".into();
+        let files = changed_files(&open(dir.path()), &spec).expect("ok");
+        assert_eq!(
+            (files[0].path.as_str(), files[0].old_path.as_deref()),
+            ("moved.txt", Some("big.txt"))
+        );
+    }
+
+    /// A move with edits on top still diffs against the file's own old content, so the
+    /// counts are the edit -- not the whole file twice over.
+    #[test]
+    fn a_move_with_edits_counts_only_the_edits() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        commit_a_big_file(dir.path(), "big.txt");
+        git(dir.path(), DATE, &["mv", "big.txt", "moved.txt"]);
+        let edited: String = (1..=200)
+            .map(|i| {
+                if i == 5 {
+                    "EDITED\n".to_string()
+                } else {
+                    format!("line {i}\n")
+                }
+            })
+            .collect();
+        write(dir.path(), "moved.txt", &edited);
+        git(dir.path(), DATE, &["add", "-A"]);
+
+        let git_repo = open(dir.path());
+        let files = changed_files(&git_repo, &spec(DiffMode::Staged, None)).expect("ok");
+        let changes = count_changes(&git_repo, &files[0]).expect("count");
+        assert_eq!((changes.add, changes.del), (1, 1));
     }
 
     #[test]

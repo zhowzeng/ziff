@@ -70,6 +70,9 @@ pub enum TreeNode {
         name: String,
         path: String,
         changes: Option<Changes>,
+        /// Where this file used to be, when it was renamed into `path`. The old path is
+        /// not a node of its own -- the file moved, it wasn't deleted and recreated.
+        renamed_from: Option<String>,
     },
 }
 
