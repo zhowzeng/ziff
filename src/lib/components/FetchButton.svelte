@@ -1,21 +1,19 @@
 <script>
+  /**
+   * @typedef {Object} Props
+   * @property {boolean} [fetching]
+   * @property {string} [lastFetched]
+   * @property {() => void} onFetch
+   */
+
   import Icon from './Icon.svelte';
 
-  let fetching = $state(false);
-  let lastFetched = $state('剛剛');
-
-  function doFetch() {
-    if (fetching) return;
-    fetching = true;
-    setTimeout(() => {
-      fetching = false;
-      lastFetched = '剛剛';
-    }, 900);
-  }
+  /** @type {Props} */
+  let { fetching = false, lastFetched = '尚未 fetch', onFetch } = $props();
 </script>
 
 <button
-  onclick={doFetch}
+  onclick={onFetch}
   title={`上次 fetch：${lastFetched}`}
   style={`display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:var(--radius-sm);
     border:1px solid var(--border-default);background:var(--gray-0);cursor:${fetching ? 'default' : 'pointer'};
