@@ -100,6 +100,16 @@ pub struct DiffHunk {
     pub lines: Vec<DiffLine>,
 }
 
+/// One file's line-level diff between the two sides of a Diff Mode.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiff {
+    pub hunks: Vec<DiffHunk>,
+    /// A file neither side can decode as UTF-8, so there are no lines to diff and the
+    /// diff view says so rather than showing an empty diff for a file that did change.
+    pub binary: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileContent {

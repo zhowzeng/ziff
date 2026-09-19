@@ -451,6 +451,10 @@
           {/if}
         {:else if reviewState.loadingDiff}
           <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入 diff…" /></div>
+        {:else if reviewState.diffBinary}
+          <div class="diff-body-empty">
+            <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案有變更，但不是文字檔，無法逐行顯示 diff，也無法留言。" />
+          </div>
         {:else if reviewState.diffHunks.length === 0}
           <div class="diff-body-empty">
             <EmptyState size="md" icon="file-check" title="這個檔案沒有變更" hint="選擇左側標示變更行數的檔案，才會顯示 diff。" />

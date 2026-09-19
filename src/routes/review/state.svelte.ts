@@ -36,6 +36,9 @@ class ReviewState {
   // one shows File View — its full worktree content (CONTEXT.md: File View).
   selectedView = $state<'diff' | 'file' | null>(null);
   diffHunks = $state<DiffHunk[]>([]);
+  // A changed file with no lines to diff. Not the same as having no changes, so the
+  // diff view says so rather than showing the "no changes" empty state.
+  diffBinary = $state(false);
   fileLines = $state<string[]>([]);
   fileBinary = $state(false);
 
@@ -212,6 +215,7 @@ class ReviewState {
     this.selectedFile = path;
     this.selectedView = view;
     this.diffHunks = [];
+    this.diffBinary = false;
     this.fileLines = [];
     this.fileBinary = false;
     if (view === 'diff') await this.#loadDiff(spec, path, seq);
@@ -221,9 +225,10 @@ class ReviewState {
   async #loadDiff(spec: DiffSpec, path: string, seq: number) {
     this.loadingDiff = true;
     try {
-      const hunks = await getFileDiff(spec, path);
+      const diff = await getFileDiff(spec, path);
       if (seq !== this.#diffSeq) return;
-      this.diffHunks = hunks;
+      this.diffHunks = diff.hunks;
+      this.diffBinary = diff.binary;
     } catch (e) {
       if (seq !== this.#diffSeq) return;
       toast(`載入 diff 失敗：${e}`, { variant: 'danger' });
@@ -251,6 +256,7 @@ class ReviewState {
     this.selectedFile = null;
     this.selectedView = null;
     this.diffHunks = [];
+    this.diffBinary = false;
     this.fileLines = [];
     this.fileBinary = false;
   }
