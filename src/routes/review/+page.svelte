@@ -1,209 +1,41 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import FileTree from "./components/FileTree.svelte";
-  import DiffHunk from "./components/DiffHunk.svelte";
-  import DiffLine from "./components/DiffLine.svelte";
-  import DiffLineSplit from "./components/DiffLineSplit.svelte";
-  import FileLine from "./components/FileLine.svelte";
-  import CommentThread from "./components/CommentThread.svelte";
-  import Avatar from "$lib/components/Avatar.svelte";
-  import Icon from "$lib/components/Icon.svelte";
-  import Input from "$lib/components/Input.svelte";
-  import Dropdown from "$lib/components/Dropdown.svelte";
-  import Segmented from "$lib/components/Segmented.svelte";
-  import FetchButton from "$lib/components/FetchButton.svelte";
-  import FileHeader from "./components/FileHeader.svelte";
+  import DiffPanel from "./components/DiffPanel.svelte";
+  import Sidebar from "./components/Sidebar.svelte";
+  import Topbar from "./components/Topbar.svelte";
   import QueueDrawer from "./components/QueueDrawer.svelte";
   import QueueFab from "./components/QueueFab.svelte";
-  import EmptyState from "$lib/components/EmptyState.svelte";
   import Modal from "$lib/components/Modal.svelte";
   import Button from "$lib/components/Button.svelte";
   import SettingsModal, { DEFAULT_SETTINGS } from "$lib/components/SettingsModal.svelte";
-  import { toast } from "$lib/toast/state.svelte";
   import { reviewState } from "./state.svelte";
   import { commentQueue } from "./comment-queue.svelte";
-  import {
-    allDirPaths,
-    branchMeta,
-    fileLineRange,
-    flattenHunks,
-    formatForAgent,
-    formatTime,
-    lineRange,
-    pairHunkLines,
-    pruneByName,
-    pruneToChanged,
-    type FlatLine,
-    type IndexedLine,
-  } from "./helpers";
-  import type { DiffLine as DiffLineData, DiffMode, Repo } from "./types";
-
-  const DIFF_MODES = [
-    { value: "unstaged", label: "Unstaged" },
-    { value: "branch", label: "Branch" },
-    { value: "staged", label: "Staged" },
-  ];
-  const VIEW_MODES = [
-    { value: "unified", label: "Unified" },
-    { value: "split", label: "Split" },
-  ];
+  import { selection } from "./selection.svelte";
+  import { pruneToChanged } from "./helpers";
+  import type { DiffMode, Repo } from "./types";
 
   onMount(() => {
     reviewState.loadRepos();
   });
 
-  let showAllFiles = $state(false);
-  let fileFilter = $state("");
   let settingsOpen = $state(false);
   let removeTarget = $state<Repo | null>(null);
   let settings = $state({ ...DEFAULT_SETTINGS });
 
-  let repoOptions = $derived(reviewState.repos.map((r) => ({ value: r.id, label: r.name, meta: r.path })));
-  // Only the Base Branch is pickable now, so the branch under review is left out of
-  // its options — a branch diffed against itself is always empty.
-  let baseBranchOptions = $derived(
-    reviewState.branches
-      .filter((b) => b.name !== reviewState.branch)
-      .map((b) => ({ value: b.name, label: b.name, meta: branchMeta(b) })),
-  );
-
   let changedTree = $derived(pruneToChanged(reviewState.tree));
-  let baseTree = $derived(showAllFiles ? reviewState.tree : changedTree);
-  let shownTree = $derived(fileFilter.trim() ? pruneByName(baseTree, fileFilter.trim().toLowerCase()) : baseTree);
-  // "No diff" is about what the sidebar would actually list: the changed files, or
-  // the whole tree when the reviewer asked to see every file.
-  let sidebarEmptyState = $derived.by(() => {
-    if (baseTree.length === 0) return "no-diff";
-    if (fileFilter.trim() && shownTree.length === 0) return "no-match";
-    return null;
-  });
   // Nothing has been added on this machine yet, so the reviewer's next step is the
   // folder picker rather than the Repo dropdown.
   let noRepos = $derived(reviewState.repos.length === 0);
   let loadingFiles = $derived(reviewState.loadingRepos || reviewState.loadingBranches || reviewState.loadingTree);
-  // An unchanged file has no diff, so it opens in File View instead (CONTEXT.md).
-  let isFileView = $derived(reviewState.selectedView === "file");
-
-  let openThread = $state<{ lo: number; hi: number } | null>(null);
-  let replyValue = $state("");
-  let dragging = $state<{ start: number; end: number } | null>(null);
-
-  $effect(() => {
-    function onUp() {
-      if (dragging) {
-        const lo = Math.min(dragging.start, dragging.end);
-        const hi = Math.max(dragging.start, dragging.end);
-        dragging = null;
-        openThread = { lo, hi };
-        replyValue = "";
-      }
-    }
-    window.addEventListener("mouseup", onUp);
-    return () => window.removeEventListener("mouseup", onUp);
-  });
-
-  function gutterDown(i: number) {
-    dragging = { start: i, end: i };
-  }
-  function gutterEnter(i: number) {
-    if (!dragging) return;
-    // A selection stays inside one hunk: line numbers aren't contiguous across hunk
-    // boundaries, so a range spanning two hunks names lines that aren't in the diff.
-    // File View has no hunks — it's one continuous file — so nothing to stay inside of.
-    if (!isFileView && flatLines[i]?.hunk !== flatLines[dragging.start]?.hunk) return;
-    dragging = { ...dragging, end: i };
-  }
-  function isSelected(i: number) {
-    if (dragging) {
-      const lo = Math.min(dragging.start, dragging.end);
-      const hi = Math.max(dragging.start, dragging.end);
-      return i >= lo && i <= hi;
-    }
-    if (openThread) return i >= openThread.lo && i <= openThread.hi;
-    return false;
-  }
-  function openSingleThread(idx: number) {
-    openThread = { lo: idx, hi: idx };
-    replyValue = "";
-  }
-  function closeThread() {
-    openThread = null;
-    replyValue = "";
-    dragging = null;
-  }
-
-  let flatLines = $derived(flattenHunks(reviewState.diffHunks));
-  let hunkGroups = $derived.by(() => {
-    const groups = reviewState.diffHunks.map((h) => ({ header: h.header, lines: [] as FlatLine[] }));
-    for (const f of flatLines) groups[f.hunk].lines.push(f);
-    return groups;
-  });
-  // File View's lines are indexed straight off the file, so its anchors come from the
-  // line indexes themselves rather than from the diff's two numbering spaces.
-  let threadRange = $derived.by(() => {
-    if (!openThread) return null;
-    if (isFileView) return fileLineRange(openThread.lo, openThread.hi);
-    return lineRange(flatLines, openThread.lo, openThread.hi);
-  });
-
-  // The thread renders straight out of the Comment Queue rather than keeping its own
-  // copy, so an edit here reaches the text that gets handed to the CLI agent, and
-  // reopening a commented range edits that comment instead of starting a second one.
-  let threadItem = $derived(
-    threadRange && reviewState.selectedFile
-      ? commentQueue.find(reviewState.repoId, reviewState.selectedFile, threadRange)
-      : null,
-  );
-  let threadComments = $derived.by(() => {
-    const item = threadItem;
-    if (!item) return [];
-    return [
-      {
-        time: formatTime(item.createdAt),
-        text: item.text,
-        editable: true,
-        onEdit: (text: string) => commentQueue.update(item.id, text),
-      },
-    ];
-  });
 
   // A queue belongs to one Repo (docs/decisions/0009), so everything read out of it
   // here is scoped to the Repo being reviewed.
   let queueItems = $derived(commentQueue.itemsFor(reviewState.repoId));
-  let commentedKeys = $derived(commentQueue.lineKeys(reviewState.repoId, reviewState.selectedFile ?? ""));
 
-  function isCommented(line: DiffLineData) {
-    return line.newNo !== null && commentedKeys.has(`new:${line.newNo}`);
-  }
-
-  function addToQueue() {
-    if (!replyValue.trim() || !threadRange || !reviewState.selectedFile || !reviewState.repoId) return;
-    commentQueue.add({
-      repoId: reviewState.repoId,
-      file: reviewState.selectedFile,
-      ...threadRange,
-      text: replyValue.trim(),
-    });
-    replyValue = "";
-  }
-
-  // Copy Now is used-once (docs/decisions/0001): it never touches the Comment Queue, so
-  // the thread closes instead of reopening onto a saved comment there is none of.
-  async function copyNow() {
-    if (!replyValue.trim() || !threadRange || !reviewState.selectedFile) return;
-    const text = formatForAgent({ file: reviewState.selectedFile, ...threadRange, text: replyValue.trim() });
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (e) {
-      toast(`複製到剪貼簿失敗：${e}`, { variant: "danger" });
-      return;
-    }
-    closeThread();
-    toast("已複製這則評論", { variant: "success" });
-  }
-
+  // Anything that replaces the diff on screen drops the selection with it: the lines it
+  // named are no longer the lines on screen.
   function addRepo() {
-    closeThread();
+    selection.close();
     reviewState.addRepo();
   }
   // Removing a Repo discards its Comment Queue (docs/decisions/0009), so it asks first
@@ -219,291 +51,77 @@
   }
   function removeRepo(id: string) {
     removeTarget = null;
-    closeThread();
+    selection.close();
     reviewState.removeRepo(id);
   }
   function selectRepo(id: string) {
-    closeThread();
+    selection.close();
     reviewState.selectRepo(id);
   }
   function setBaseBranch(name: string) {
-    closeThread();
+    selection.close();
     reviewState.setBaseBranch(name);
   }
   function setDiffMode(mode: string) {
-    closeThread();
+    selection.close();
     reviewState.setDiffMode(mode as DiffMode);
   }
   function selectFile(path: string) {
-    closeThread();
+    selection.close();
     reviewState.selectFile(path);
-  }
-
-  type Row = { kind: "header"; label: string } | { kind: "line"; idx: number; line: DiffLineData };
-  let rows = $derived.by<Row[]>(() => {
-    const out: Row[] = [];
-    for (const g of hunkGroups) {
-      out.push({ kind: "header", label: g.header });
-      for (const f of g.lines) out.push({ kind: "line", idx: f.idx, line: f.line });
-    }
-    return out;
-  });
-
-  type SplitPair = ReturnType<typeof pairHunkLines>[number];
-  type SplitRow = { kind: "header"; label: string } | ({ kind: "row" } & SplitPair);
-  let splitRows = $derived.by<SplitRow[]>(() => {
-    const out: SplitRow[] = [];
-    for (const g of hunkGroups) {
-      out.push({ kind: "header", label: g.header });
-      const numbered: IndexedLine[] = g.lines.map((f) => ({ ...f.line, idx: f.idx }));
-      for (const pair of pairHunkLines(numbered)) {
-        out.push({ kind: "row", ...pair });
-      }
-    }
-    return out;
-  });
-
-  function splitRowThreadEndIdx(row: SplitPair) {
-    if (row.right) return row.right.idx;
-    if (row.left) return row.left.idx;
-    return null;
-  }
-
-  // A del line paired with an add sits on the left of its row, so matching only the
-  // right side would drop the thread when the reviewer switches to Split view.
-  function splitRowHasIdx(row: SplitPair, idx: number) {
-    return row.left?.idx === idx || row.right?.idx === idx;
   }
 </script>
 
-{#snippet commentBlock()}
-  <div class="thread-anchor">
-    <div class="thread-avatar">
-      <Avatar name="Yu-Chen" size={24} />
-    </div>
-    <div class="thread-body">
-      <CommentThread
-        file={reviewState.selectedFile}
-        lineStart={threadRange?.lineStart}
-        lineEnd={threadRange?.lineEnd}
-        comments={threadComments}
-        bind:replyValue
-        onAddToQueue={addToQueue}
-        onCopyNow={copyNow}
-        onClose={closeThread}
-      />
-    </div>
-  </div>
-{/snippet}
-
 <div class="app">
-  <header class="topbar">
-    <div class="brand">
-      <Icon name="git-pull-request" size={18} color="var(--accent)" />
-      <span class="wordmark">Ziff</span>
-    </div>
-    <Dropdown
-      icon="folder"
-      label="Repo"
-      options={repoOptions}
-      value={reviewState.repoId ?? ""}
-      onChange={selectRepo}
-      onAddNew={addRepo}
-      addNewLabel="Add repo…"
-      optionAction={{ icon: "trash-2", title: "從 Ziff 移除（不會刪除資料夾）", onAction: requestRemoveRepo }}
-      placeholder="Select repo…"
-      width={260}
-    />
-    <Icon name="chevron-right" size={12} color="var(--border-default)" />
-    <!-- Not a picker: a comment's path:L12 is read against the worktree, so the branch
-         under review is always the checked-out one (docs/decisions/0010). -->
-    <div class="topbar-branch" title={reviewState.detachedHead ? "HEAD 沒有指向任何分支" : "目前 checkout 的分支"}>
-      <Icon name={reviewState.detachedHead ? "git-commit-horizontal" : "git-branch"} size={13} color="var(--text-tertiary)" />
-      <span class="topbar-branch-name">
-        {reviewState.detachedHead ? `detached @ ${reviewState.detachedHead}` : (reviewState.branch ?? "")}
-      </span>
-    </div>
-    {#if reviewState.diffMode === "branch"}
-      <!-- Only Branch mode compares against a Base Branch (CONTEXT.md: Diff Mode). -->
-      <span class="topbar-vs">vs</span>
-      <Dropdown
-        icon="git-merge"
-        label="Base Branch"
-        sublabel="Base branch"
-        options={baseBranchOptions}
-        value={reviewState.baseBranch ?? ""}
-        onChange={setBaseBranch}
-        width={280}
-      />
-    {/if}
-    <div class="topbar-spacer"></div>
-    <FetchButton fetching={reviewState.fetching} lastFetched={reviewState.lastFetched ?? undefined} onFetch={() => reviewState.fetchRemoteBranch()} />
-  </header>
+  <Topbar
+    repos={reviewState.repos}
+    repoId={reviewState.repoId}
+    branch={reviewState.branch}
+    detachedHead={reviewState.detachedHead}
+    branches={reviewState.branches}
+    baseBranch={reviewState.baseBranch}
+    diffMode={reviewState.diffMode}
+    fetching={reviewState.fetching}
+    lastFetched={reviewState.lastFetched}
+    onSelectRepo={selectRepo}
+    onAddRepo={addRepo}
+    onRemoveRepo={requestRemoveRepo}
+    onSetBaseBranch={setBaseBranch}
+    onFetch={() => reviewState.fetchRemoteBranch()}
+  />
 
   <div class="body">
-    <aside class="sidebar">
-      <div class="sidebar-toolbar">
-        <Segmented value={reviewState.diffMode} onChange={setDiffMode} options={DIFF_MODES} />
-      </div>
-      <div class="sidebar-filter">
-        <div class="filter-input-wrap">
-          <Icon name="search" size={13} color="var(--text-tertiary)" class="filter-icon" />
-          <Input placeholder="Filter files…" size="sm" bind:value={fileFilter} disabled={!reviewState.repoId} style="padding-left:26px" />
-        </div>
-        <label class="show-all-label">
-          <input type="checkbox" bind:checked={showAllFiles} disabled={!reviewState.repoId} />
-          顯示所有檔案
-        </label>
-      </div>
-      <div class="sidebar-tree">
-        {#if loadingFiles}
-          <EmptyState size="sm" icon="loader" title="載入中…" />
-        {:else if !reviewState.repoId}
-          <EmptyState
-            size="sm"
-            icon="folder-git-2"
-            title={noRepos ? "尚未加入 repo" : "尚未選擇 repo"}
-            hint={noRepos
-              ? "從上方 Repo 選單的「Add repo…」加入本機 git repo。"
-              : "從上方選擇 repo 與 branch 後，這裡會顯示變更的檔案。"}
-          />
-        {:else if reviewState.detachedHead}
-          <EmptyState
-            size="sm"
-            icon="git-commit-horizontal"
-            title="HEAD 沒有指向分支"
-            hint={`目前停在 ${reviewState.detachedHead}。Ziff review 的是已 checkout 的分支，先 checkout 一個分支再回來。`}
-          />
-        {:else if sidebarEmptyState === "no-diff"}
-          <EmptyState size="sm" icon="git-compare" title="此分支沒有變更" hint="切換到有變更的分支，或勾選「顯示所有檔案」瀏覽整個專案。" />
-        {:else if sidebarEmptyState === "no-match"}
-          <EmptyState size="sm" icon="search-x" title="找不到符合的檔案" hint={`沒有檔案名稱包含「${fileFilter.trim()}」`} />
-        {:else}
-          {#key reviewState.tree}
-            <FileTree tree={shownTree} selected={reviewState.selectedFile ?? undefined} onSelect={selectFile} defaultExpanded={allDirPaths(changedTree)} />
-          {/key}
-        {/if}
-      </div>
-      <button class="settings-entry" onclick={() => (settingsOpen = true)}>
-        <Icon name="settings" size={14} color="var(--text-tertiary)" />
-        Settings
-      </button>
-    </aside>
+    <Sidebar
+      tree={reviewState.tree}
+      {changedTree}
+      diffMode={reviewState.diffMode}
+      repoId={reviewState.repoId}
+      detachedHead={reviewState.detachedHead}
+      selectedFile={reviewState.selectedFile}
+      loading={loadingFiles}
+      {noRepos}
+      onSetDiffMode={setDiffMode}
+      onSelectFile={selectFile}
+      onOpenSettings={() => (settingsOpen = true)}
+    />
 
-    {#if loadingFiles}
-      <main class="diff-panel diff-panel-empty">
-        <EmptyState size="md" icon="loader" title="載入中…" />
-      </main>
-    {:else if !reviewState.repoId}
-      <main class="diff-panel diff-panel-empty">
-        <EmptyState
-          size="md"
-          icon="folder-git-2"
-          title={noRepos ? "加入一個 repo 開始" : "選擇一個 repo 開始"}
-          hint={noRepos
-            ? "從左上角 Repo 選單的「Add repo…」選擇本機 git repo 資料夾。"
-            : "從左上角選擇 repo 與 branch，即可檢視變更並開始留言。"}
-        />
-      </main>
-    {:else if !reviewState.selectedFile && changedTree.length === 0}
-      <main class="diff-panel diff-panel-empty">
-        <EmptyState size="md" icon="git-compare" title="這個分支目前沒有變更" hint="切換到有 commit 差異的分支，或建立新的變更後再回來查看。" />
-      </main>
-    {:else if !reviewState.selectedFile}
-      <main class="diff-panel diff-panel-empty">
-        <EmptyState size="md" icon="file-code" title="選擇一個檔案查看 diff" hint="從左側的檔案清單選擇一個變更的檔案。" />
-      </main>
-    {:else}
-      <main class="diff-panel">
-        <div class="diff-panel-header">
-          <div class="file-header-wrap"><FileHeader path={reviewState.selectedFile} renamedFrom={reviewState.selectedRenamedFrom} /></div>
-          {#if !isFileView}
-            <div class="view-toggle-wrap"><Segmented value={reviewState.view} onChange={(v) => (reviewState.view = v as typeof reviewState.view)} options={VIEW_MODES} /></div>
-          {/if}
-        </div>
-
-        {#if isFileView}
-          {#if reviewState.loadingFile}
-            <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入檔案…" /></div>
-          {:else if reviewState.fileBinary}
-            <div class="diff-body-empty">
-              <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案不是文字檔，無法逐行顯示，也無法留言。" />
-            </div>
-          {:else if reviewState.fileLines.length === 0}
-            <div class="diff-body-empty">
-              <EmptyState size="md" icon="file" title="這個檔案是空的" hint="檔案沒有任何內容可以顯示。" />
-            </div>
-          {:else}
-            {#each reviewState.fileLines as content, i (i)}
-              <FileLine
-                lineNo={i + 1}
-                {content}
-                index={i}
-                selected={isSelected(i)}
-                commented={commentedKeys.has(`file:${i + 1}`)}
-                onGutterDown={gutterDown}
-                onGutterEnter={gutterEnter}
-              />
-              {#if openThread && i === openThread.hi}
-                {@render commentBlock()}
-              {/if}
-            {/each}
-          {/if}
-        {:else if reviewState.loadingDiff}
-          <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入 diff…" /></div>
-        {:else if reviewState.diffBinary}
-          <div class="diff-body-empty">
-            <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案有變更，但不是文字檔，無法逐行顯示 diff，也無法留言。" />
-          </div>
-        {:else if reviewState.diffHunks.length === 0}
-          <div class="diff-body-empty">
-            <EmptyState size="md" icon="file-check" title="這個檔案沒有變更" hint="選擇左側標示變更行數的檔案，才會顯示 diff。" />
-          </div>
-        {:else if reviewState.view === "unified"}
-          {#each rows as row, i (i)}
-            {#if row.kind === "header"}
-              <DiffHunk label={row.label} />
-            {:else}
-              <DiffLine
-                kind={row.line.kind}
-                oldNo={row.line.oldNo}
-                newNo={row.line.newNo}
-                index={row.idx}
-                selected={isSelected(row.idx)}
-                commented={isCommented(row.line)}
-                onGutterDown={gutterDown}
-                onGutterEnter={gutterEnter}
-              >
-                {row.line.content}
-              </DiffLine>
-              {#if openThread && row.idx === openThread.hi}
-                {@render commentBlock()}
-              {/if}
-            {/if}
-          {/each}
-        {:else}
-          {#each splitRows as row, i (i)}
-            {#if row.kind === "header"}
-              <DiffHunk label={row.label} />
-            {:else}
-              <DiffLineSplit
-                left={row.left}
-                right={row.right}
-                leftCommented={commentedKeys.has(`old:${row.left?.no}`)}
-                rightCommented={commentedKeys.has(`new:${row.right?.no}`)}
-                onAddComment={() => {
-                  const idx = splitRowThreadEndIdx(row);
-                  if (idx !== null) openSingleThread(idx);
-                }}
-              />
-              {#if openThread && splitRowHasIdx(row, openThread.hi)}
-                {@render commentBlock()}
-              {/if}
-            {/if}
-          {/each}
-        {/if}
-      </main>
-    {/if}
+    <DiffPanel
+      repoId={reviewState.repoId}
+      selectedFile={reviewState.selectedFile}
+      selectedRenamedFrom={reviewState.selectedRenamedFrom}
+      selectedView={reviewState.selectedView}
+      view={reviewState.view}
+      onViewChange={(v) => (reviewState.view = v)}
+      diffHunks={reviewState.diffHunks}
+      diffBinary={reviewState.diffBinary}
+      loadingDiff={reviewState.loadingDiff}
+      fileLines={reviewState.fileLines}
+      fileBinary={reviewState.fileBinary}
+      loadingFile={reviewState.loadingFile}
+      loading={loadingFiles}
+      {noRepos}
+      hasChanges={changedTree.length > 0}
+    />
 
     {#if commentQueue.open}
       <QueueDrawer
@@ -546,48 +164,6 @@
     font-family: var(--font-sans);
   }
 
-  .topbar {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    height: 48px;
-    padding: 0 var(--space-3);
-    border-bottom: 1px solid var(--border-default);
-    background: var(--bg-surface);
-    flex-shrink: 0;
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding-right: var(--space-2);
-  }
-
-  .wordmark {
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-
-  .topbar-branch {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 8px;
-    min-width: 0;
-    max-width: 220px;
-  }
-  .topbar-branch-name {
-    font-family: var(--font-sans);
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .modal-text {
     margin: 0;
     font-family: var(--font-sans);
@@ -599,155 +175,9 @@
     margin-top: 10px;
     color: var(--danger-emphasis);
   }
-  .topbar-vs {
-    font-family: var(--font-sans);
-    font-size: var(--text-xs);
-    color: var(--text-tertiary);
-    flex-shrink: 0;
-  }
-  .topbar-spacer {
-    flex: 1;
-    min-width: 8px;
-  }
-
   .body {
     display: flex;
     flex: 1;
     min-height: 0;
-  }
-
-  .sidebar {
-    width: 240px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid var(--border-default);
-    background: var(--bg-surface);
-    min-height: 0;
-  }
-
-  .sidebar-toolbar {
-    padding: var(--space-2);
-    border-bottom: 1px solid var(--border-muted);
-    flex-shrink: 0;
-  }
-
-  .sidebar-filter {
-    padding: var(--space-2);
-    border-bottom: 1px solid var(--border-muted);
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .filter-input-wrap {
-    position: relative;
-  }
-
-  .filter-input-wrap :global(.filter-icon) {
-    position: absolute;
-    left: 8px;
-    top: 8px;
-    pointer-events: none;
-  }
-
-  .show-all-label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--font-sans);
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .show-all-label input {
-    margin: 0;
-    accent-color: var(--accent-emphasis);
-  }
-
-  .sidebar-tree {
-    flex: 1;
-    min-height: 0;
-    padding: var(--space-2);
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .settings-entry {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 36px;
-    padding: 0 10px;
-    border: none;
-    border-top: 1px solid var(--border-default);
-    background: var(--bg-subtle);
-    cursor: pointer;
-    font-family: var(--font-sans);
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-    flex-shrink: 0;
-  }
-
-  .settings-entry:hover {
-    background: var(--bg-inset);
-  }
-
-  .diff-panel {
-    flex: 1;
-    min-width: 0;
-    overflow-y: auto;
-    background: var(--bg-canvas);
-  }
-
-  .diff-panel-empty {
-    display: flex;
-  }
-
-  .diff-body-empty {
-    display: flex;
-    min-height: 240px;
-  }
-
-  .diff-panel-header {
-    display: flex;
-    align-items: stretch;
-    background: var(--bg-subtle);
-    border-bottom: 1px solid var(--border-default);
-    position: sticky;
-    top: 0;
-  }
-
-  .file-header-wrap {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .view-toggle-wrap {
-    padding: 0 10px;
-    display: flex;
-    align-items: center;
-  }
-
-  .thread-anchor {
-    display: flex;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    background: var(--bg-subtle);
-    border-bottom: 1px solid var(--border-muted);
-  }
-
-  .thread-avatar {
-    flex-shrink: 0;
-    padding-top: 2px;
-  }
-
-  .thread-body {
-    flex: 1;
-    min-width: 0;
   }
 </style>

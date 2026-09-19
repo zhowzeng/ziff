@@ -18,14 +18,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
-            commands::list_repos,
-            commands::add_repo,
-            commands::remove_repo,
-            commands::list_branches,
-            commands::get_file_tree,
-            commands::get_file_diff,
-            commands::get_file_content,
-            commands::fetch_remote,
+            commands::repo::list_repos,
+            commands::repo::add_repo,
+            commands::repo::remove_repo,
+            commands::branch::list_branches,
+            commands::tree::get_file_tree,
+            commands::file::get_file_diff,
+            commands::file::get_file_content,
+            commands::branch::fetch_remote,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
