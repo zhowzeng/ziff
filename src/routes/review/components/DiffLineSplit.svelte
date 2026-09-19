@@ -1,4 +1,6 @@
 <script>
+  import Icon from '$lib/components/Icon.svelte';
+
   const kinds = {
     add: { bg: 'var(--diff-add-bg)', bar: 'var(--diff-add-bg-strong)', text: 'var(--diff-add-text)', prefix: '+' },
     del: { bg: 'var(--diff-remove-bg)', bar: 'var(--diff-remove-bg-strong)', text: 'var(--diff-remove-text)', prefix: '-' },
@@ -13,11 +15,13 @@
    * @typedef {Object} Props
    * @property {Side} left
    * @property {Side} right
+   * @property {boolean} [leftCommented]
+   * @property {boolean} [rightCommented]
    * @property {(e: MouseEvent) => void} [onAddComment]
    */
 
   /** @type {Props} */
-  let { left, right, onAddComment } = $props();
+  let { left, right, leftCommented = false, rightCommented = false, onAddComment } = $props();
 
   let leftHover = $state(false);
   let rightHover = $state(false);
@@ -35,6 +39,14 @@
       border-left:3px solid ${left ? kLeft.bar : 'transparent'};min-width:0`}
   >
     <span style="width:34px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px;flex-shrink:0">{left ? left.no ?? '' : ''}</span>
+    <span
+      title={left && leftCommented ? '這一行已留言' : undefined}
+      style="width:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;user-select:none"
+    >
+      {#if left && leftCommented}
+        <Icon name="message-square" size={11} color="var(--accent-emphasis)" />
+      {/if}
+    </span>
     <span style={`width:14px;color:${left ? kLeft.text : 'transparent'};user-select:none;flex-shrink:0`}>{left ? kLeft.prefix : ''}</span>
     <span style={`color:${left ? kLeft.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{left ? left.text : ''}</span>
     {#if left?.commentable && leftHover}
@@ -54,6 +66,14 @@
       border-left:3px solid ${right ? kRight.bar : 'transparent'};min-width:0`}
   >
     <span style="width:34px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px;flex-shrink:0">{right ? right.no ?? '' : ''}</span>
+    <span
+      title={right && rightCommented ? '這一行已留言' : undefined}
+      style="width:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;user-select:none"
+    >
+      {#if right && rightCommented}
+        <Icon name="message-square" size={11} color="var(--accent-emphasis)" />
+      {/if}
+    </span>
     <span style={`width:14px;color:${right ? kRight.text : 'transparent'};user-select:none;flex-shrink:0`}>{right ? kRight.prefix : ''}</span>
     <span style={`color:${right ? kRight.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{right ? right.text : ''}</span>
     {#if right?.commentable && rightHover}

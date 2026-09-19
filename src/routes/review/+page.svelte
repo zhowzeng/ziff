@@ -23,6 +23,7 @@
     allDirPaths,
     branchMeta,
     flattenHunks,
+    formatTime,
     lineRange,
     pairHunkLines,
     pruneByName,
@@ -66,10 +67,7 @@
   });
   let loadingFiles = $derived(reviewState.loadingRepos || reviewState.loadingBranches || reviewState.loadingTree);
 
-  type Comment = { time: string; text: string; editable: boolean; onEdit: (text: string) => void };
-
   let openThread = $state<{ lo: number; hi: number } | null>(null);
-  let threadComments = $state<Comment[]>([]);
   let replyValue = $state("");
   let dragging = $state<{ start: number; end: number } | null>(null);
 
@@ -80,7 +78,6 @@
         const hi = Math.max(dragging.start, dragging.end);
         dragging = null;
         openThread = { lo, hi };
-        threadComments = [];
         replyValue = "";
       }
     }
@@ -109,12 +106,10 @@
   }
   function openSingleThread(idx: number) {
     openThread = { lo: idx, hi: idx };
-    threadComments = [];
     replyValue = "";
   }
   function closeThread() {
     openThread = null;
-    threadComments = [];
     replyValue = "";
     dragging = null;
   }
@@ -127,20 +122,37 @@
   });
   let threadRange = $derived(openThread ? lineRange(flatLines, openThread.lo, openThread.hi) : null);
 
-  function submitComment() {
-    if (!replyValue.trim() || !threadRange || !reviewState.selectedFile) return;
-    const text = replyValue.trim();
-    threadComments = [
+  // The thread renders straight out of the Comment Queue rather than keeping its own
+  // copy, so an edit here reaches the text that gets handed to the CLI agent, and
+  // reopening a commented range edits that comment instead of starting a second one.
+  let threadItem = $derived(
+    threadRange && reviewState.selectedFile ? commentQueue.find(reviewState.selectedFile, threadRange) : null,
+  );
+  let threadComments = $derived.by(() => {
+    const item = threadItem;
+    if (!item) return [];
+    return [
       {
-        time: "now",
-        text,
+        time: formatTime(item.createdAt),
+        text: item.text,
         editable: true,
-        onEdit: (t: string) => {
-          threadComments[0].text = t;
-        },
+        onEdit: (text: string) => commentQueue.update(item.id, text),
       },
     ];
-    commentQueue.add({ file: reviewState.selectedFile, ...threadRange, text });
+  });
+
+  let commentedKeys = $derived(commentQueue.lineKeys(reviewState.selectedFile ?? ""));
+
+  function isCommented(line: DiffLineData) {
+    return (
+      (line.newNo !== null && commentedKeys.has(`new:${line.newNo}`)) ||
+      (line.oldNo !== null && commentedKeys.has(`old:${line.oldNo}`))
+    );
+  }
+
+  function submitComment() {
+    if (!replyValue.trim() || !threadRange || !reviewState.selectedFile) return;
+    commentQueue.add({ file: reviewState.selectedFile, ...threadRange, text: replyValue.trim() });
     replyValue = "";
   }
 
@@ -315,6 +327,7 @@
                 newNo={row.line.newNo}
                 index={row.idx}
                 selected={isSelected(row.idx)}
+                commented={isCommented(row.line)}
                 onGutterDown={gutterDown}
                 onGutterEnter={gutterEnter}
               >
@@ -330,10 +343,16 @@
             {#if row.kind === "header"}
               <DiffHunk label={row.label} />
             {:else}
-              <DiffLineSplit left={row.left} right={row.right} onAddComment={() => {
-                const idx = splitRowThreadEndIdx(row);
-                if (idx !== null) openSingleThread(idx);
-              }} />
+              <DiffLineSplit
+                left={row.left}
+                right={row.right}
+                leftCommented={commentedKeys.has(`old:${row.left?.no}`)}
+                rightCommented={commentedKeys.has(`new:${row.right?.no}`)}
+                onAddComment={() => {
+                  const idx = splitRowThreadEndIdx(row);
+                  if (idx !== null) openSingleThread(idx);
+                }}
+              />
               {#if openThread && splitRowHasIdx(row, openThread.hi)}
                 {@render commentBlock()}
               {/if}
