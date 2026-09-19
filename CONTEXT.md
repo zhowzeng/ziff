@@ -29,7 +29,7 @@ The branch a Branch-mode diff is compared against. Defaults to the Repo's defaul
 _Avoid_: Target branch, main (not always main)
 
 **Comment**:
-A single note the reviewer leaves anchored to a line or line range — either a diff line, or a line of a file open in `File View`. Ziff is a solo-review tool — comments are the reviewer's own notes, not a multi-party discussion, so there's no reply/thread model. Revising one means editing it in place, not replying to it.
+A single note the reviewer leaves anchored to a line or line range — either a diff line the worktree still has, or a line of a file open in `File View`. Ziff is a solo-review tool — comments are the reviewer's own notes, not a multi-party discussion, so there's no reply/thread model. Revising one means editing it in place, not replying to it.
 _Avoid_: Comment thread, thread, reply
 
 **Context line**:
