@@ -135,7 +135,7 @@ class ReviewState {
       if (seq !== this.#branchSeq) return;
       this.branches = branches;
       const current = branches.find((b) => b.isCurrent) ?? branches[0];
-      if (current) await this.selectBranch(current.name);
+      if (current) await this.#selectBranch(current.name);
     } catch (e) {
       if (seq !== this.#branchSeq) return;
       toast(`載入分支清單失敗：${e}`, { variant: 'danger' });
@@ -144,7 +144,9 @@ class ReviewState {
     }
   }
 
-  async selectBranch(name: string) {
+  // Internal only: the reviewer doesn't pick the branch under review, it's whichever
+  // one the Repo has checked out (docs/decisions/0010).
+  async #selectBranch(name: string) {
     this.branch = name;
     await this.reloadTree();
   }

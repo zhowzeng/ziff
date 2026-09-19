@@ -59,7 +59,13 @@
   let settings = $state({ ...DEFAULT_SETTINGS });
 
   let repoOptions = $derived(reviewState.repos.map((r) => ({ value: r.id, label: r.name, meta: r.path })));
-  let branchOptions = $derived(reviewState.branches.map((b) => ({ value: b.name, label: b.name, meta: branchMeta(b) })));
+  // Only the Base Branch is pickable now, so the branch under review is left out of
+  // its options — a branch diffed against itself is always empty.
+  let baseBranchOptions = $derived(
+    reviewState.branches
+      .filter((b) => b.name !== reviewState.branch)
+      .map((b) => ({ value: b.name, label: b.name, meta: branchMeta(b) })),
+  );
 
   let changedTree = $derived(pruneToChanged(reviewState.tree));
   let baseTree = $derived(showAllFiles ? reviewState.tree : changedTree);
@@ -167,10 +173,7 @@
   let commentedKeys = $derived(commentQueue.lineKeys(reviewState.repoId, reviewState.selectedFile ?? ""));
 
   function isCommented(line: DiffLineData) {
-    return (
-      (line.newNo !== null && commentedKeys.has(`new:${line.newNo}`)) ||
-      (line.oldNo !== null && commentedKeys.has(`old:${line.oldNo}`))
-    );
+    return line.newNo !== null && commentedKeys.has(`new:${line.newNo}`);
   }
 
   function addToQueue() {
@@ -222,10 +225,6 @@
   function selectRepo(id: string) {
     closeThread();
     reviewState.selectRepo(id);
-  }
-  function selectBranch(name: string) {
-    closeThread();
-    reviewState.selectBranch(name);
   }
   function setBaseBranch(name: string) {
     closeThread();
@@ -316,7 +315,12 @@
       width={260}
     />
     <Icon name="chevron-right" size={12} color="var(--border-default)" />
-    <Dropdown icon="git-branch" label="Branch" options={branchOptions} value={reviewState.branch ?? ""} onChange={selectBranch} width={280} />
+    <!-- Not a picker: a comment's path:L12 is read against the worktree, so the branch
+         under review is always the checked-out one (docs/decisions/0010). -->
+    <div class="topbar-branch" title="目前 checkout 的分支">
+      <Icon name="git-branch" size={13} color="var(--text-tertiary)" />
+      <span class="topbar-branch-name">{reviewState.branch ?? ""}</span>
+    </div>
     {#if reviewState.diffMode === "branch"}
       <!-- Only Branch mode compares against a Base Branch (CONTEXT.md: Diff Mode). -->
       <span class="topbar-vs">vs</span>
@@ -324,7 +328,7 @@
         icon="git-merge"
         label="Base Branch"
         sublabel="Base branch"
-        options={branchOptions}
+        options={baseBranchOptions}
         value={reviewState.baseBranch ?? ""}
         onChange={setBaseBranch}
         width={280}
@@ -549,6 +553,24 @@
     color: var(--text-primary);
   }
 
+  .topbar-branch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 8px;
+    min-width: 0;
+    max-width: 220px;
+  }
+  .topbar-branch-name {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .modal-text {
     margin: 0;
     font-family: var(--font-sans);

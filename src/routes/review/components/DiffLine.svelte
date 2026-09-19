@@ -52,7 +52,10 @@
     border-left:3px solid ${selected ? 'var(--accent-emphasis)' : k.bar};
     font-family:var(--font-mono);font-size:var(--text-sm);line-height:20px;position:relative`}
 >
-  {#if (hover || selected) && onGutterDown}
+  <!-- A del line is gone from the worktree, so `path:L12` for it would name a line the
+       CLI agent reads as something else — no affordance there (docs/decisions/0010).
+       This matches Split view, where only the new-side column offers it. -->
+  {#if (hover || selected) && onGutterDown && newNo !== null}
     <button
       onmousedown={(e) => {
         e.preventDefault();
