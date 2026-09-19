@@ -1,5 +1,8 @@
 mod commands;
+mod diff;
 mod store;
+#[cfg(test)]
+mod test_repo;
 mod types;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/

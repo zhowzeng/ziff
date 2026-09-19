@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use crate::diff;
 use crate::store;
 use crate::types::{
     Branch, BranchList, Changes, DiffHunk, DiffLine, DiffSpec, FetchResult, FileContent, LineKind,
@@ -193,30 +195,81 @@ fn count_commits(git: &gix::Repository, tip: gix::ObjectId, hidden: gix::ObjectI
 }
 
 #[tauri::command]
-pub fn get_file_tree(_spec: DiffSpec) -> Result<Vec<TreeNode>, String> {
-    Ok(vec![
-        TreeNode::Dir {
-            name: "src".into(),
-            path: "src".into(),
-            children: vec![
-                TreeNode::File {
-                    name: "xlsx_tool.rs".into(),
-                    path: "src/xlsx_tool.rs".into(),
-                    changes: Some(Changes { add: 12, del: 4 }),
-                },
-                TreeNode::File {
-                    name: "main.rs".into(),
-                    path: "src/main.rs".into(),
-                    changes: None,
-                },
-            ],
-        },
-        TreeNode::File {
-            name: "Cargo.toml".into(),
-            path: "Cargo.toml".into(),
-            changes: Some(Changes { add: 2, del: 1 }),
-        },
-    ])
+pub fn get_file_tree(app: tauri::AppHandle, spec: DiffSpec) -> Result<Vec<TreeNode>, String> {
+    let root = repo_root(&app, &spec.repo_id)?;
+    let git = gix::open(&root).map_err(|e| format!("Cannot open {}: {e}", root.display()))?;
+    read_file_tree(&git, &spec).map_err(|e| format!("Cannot list changed files: {e}"))
+}
+
+/// The sidebar's tree: every file the checkout tracks, with `changes` on the ones that
+/// differ in this Diff Mode.
+///
+/// Unchanged files are in here on purpose. "顯示所有檔案" browses the whole project, and
+/// File View lets a reviewer comment on a file with no diff at all (ADR 0007) -- the
+/// frontend prunes to the changed ones when that box is unticked, so returning only
+/// changed files here would take both away.
+fn read_file_tree(
+    git: &gix::Repository,
+    spec: &DiffSpec,
+) -> Result<Vec<TreeNode>, Box<dyn std::error::Error + Send + Sync>> {
+    let changed = diff::changed_files(git, spec)?;
+    let mut changes = BTreeMap::new();
+    for file in &changed {
+        changes.insert(file.path.clone(), diff::count_changes(git, file)?);
+    }
+    // A file deleted on this side isn't in the index any more, so it has to be carried
+    // in from the change list or it would vanish from the tree entirely.
+    let extra: Vec<String> = changed.into_iter().map(|file| file.path).collect();
+    let paths = diff::tracked_paths(git, &extra)?;
+    Ok(build_level(&paths, &changes, "", 0))
+}
+
+/// Groups sorted repo-relative paths into one level of the tree, recursing per
+/// directory. Sorted input is what makes this work: everything under one directory is
+/// adjacent, so a directory's children are a contiguous slice.
+fn build_level(
+    paths: &[String],
+    changes: &BTreeMap<String, Changes>,
+    prefix: &str,
+    depth: usize,
+) -> Vec<TreeNode> {
+    let mut nodes = Vec::new();
+    let mut i = 0;
+    while i < paths.len() {
+        let name = paths[i]
+            .split('/')
+            .nth(depth)
+            .unwrap_or_default()
+            .to_string();
+        let is_file = paths[i].split('/').count() == depth + 1;
+        if is_file {
+            nodes.push(TreeNode::File {
+                name,
+                path: paths[i].clone(),
+                changes: changes.get(&paths[i]).copied(),
+            });
+            i += 1;
+        } else {
+            let dir_prefix = format!("{prefix}{name}/");
+            let len = paths[i..]
+                .iter()
+                .take_while(|path| path.starts_with(&dir_prefix))
+                .count();
+            nodes.push(TreeNode::Dir {
+                path: format!("{prefix}{name}"),
+                name,
+                children: build_level(&paths[i..i + len], changes, &dir_prefix, depth + 1),
+            });
+            i += len;
+        }
+    }
+    // Directories first, the way a file tree is normally read.
+    nodes.sort_by(|a, b| match (a, b) {
+        (TreeNode::Dir { .. }, TreeNode::File { .. }) => std::cmp::Ordering::Less,
+        (TreeNode::File { .. }, TreeNode::Dir { .. }) => std::cmp::Ordering::Greater,
+        _ => std::cmp::Ordering::Equal,
+    });
+    nodes
 }
 
 #[tauri::command]
@@ -357,8 +410,11 @@ pub fn fetch_remote(_repo_id: String) -> Result<FetchResult, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        find_repo_root, read_branches, read_file_content, read_repo, resolve_in_repo, split_lines,
+        build_level, find_repo_root, read_branches, read_file_content, read_file_tree, read_repo,
+        resolve_in_repo, split_lines,
     };
+    use crate::test_repo::{git, open, repo_with_a_commit, write, DATE};
+    use crate::types::{DiffMode, DiffSpec, TreeNode};
 
     /// Lays out a git repository whose HEAD is on `head_branch`, optionally with an
     /// `origin/HEAD` symref — the two things `default_branch` reads.
@@ -501,47 +557,111 @@ mod tests {
         assert_eq!(err, "link.txt is outside the repo");
     }
 
-    /// Branch fixtures need real commits, so these tests drive the `git` CLI rather
-    /// than hand-writing objects. Global and system config are cut off so a
-    /// contributor's own git settings can't change what the fixtures produce.
-    fn git(dir: &std::path::Path, date: &str, args: &[&str]) {
-        let out = std::process::Command::new("git")
-            .args(args)
-            .current_dir(dir)
-            .env("GIT_CONFIG_GLOBAL", "/dev/null")
-            .env("GIT_CONFIG_SYSTEM", "/dev/null")
-            .env("GIT_AUTHOR_NAME", "Ziff Test")
-            .env("GIT_AUTHOR_EMAIL", "test@ziff.invalid")
-            .env("GIT_AUTHOR_DATE", date)
-            .env("GIT_COMMITTER_NAME", "Ziff Test")
-            .env("GIT_COMMITTER_EMAIL", "test@ziff.invalid")
-            .env("GIT_COMMITTER_DATE", date)
-            .output()
-            .expect("run git");
-        assert!(
-            out.status.success(),
-            "git {args:?} failed: {}",
-            String::from_utf8_lossy(&out.stderr)
+    fn unstaged_spec() -> DiffSpec {
+        DiffSpec {
+            repo_id: "/unused".into(),
+            branch: "main".into(),
+            diff_mode: DiffMode::Unstaged,
+            base_branch: None,
+        }
+    }
+
+    fn names(nodes: &[TreeNode]) -> Vec<&str> {
+        nodes
+            .iter()
+            .map(|node| match node {
+                TreeNode::Dir { name, .. } | TreeNode::File { name, .. } => name.as_str(),
+            })
+            .collect()
+    }
+
+    /// The sidebar browses the whole project ("顯示所有檔案") and File View comments on
+    /// files with no diff (ADR 0007), so an unchanged file has to be in the tree --
+    /// just without `changes`.
+    #[test]
+    fn the_tree_keeps_a_file_that_did_not_change() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        assert!(matches!(
+            tree.as_slice(),
+            [TreeNode::File { changes: None, .. }]
+        ));
+    }
+
+    #[test]
+    fn the_tree_marks_a_changed_file_with_its_counts() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(
+            dir.path(),
+            "file.txt",
+            "one
+two
+three
+four
+",
         );
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        let TreeNode::File { changes, .. } = &tree[0] else {
+            panic!("expected a file, got {tree:?}");
+        };
+        assert_eq!(changes.map(|c| (c.add, c.del)), Some((1, 0)));
     }
 
-    /// A repo on `main` with one commit.
-    fn repo_with_a_commit(dir: &std::path::Path, date: &str) {
-        git(dir, date, &["init", "-b", "main", "."]);
-        std::fs::write(dir.join("file.txt"), "one\n").expect("write");
-        git(dir, date, &["add", "."]);
-        git(dir, date, &["commit", "-m", "first"]);
+    #[test]
+    fn the_tree_nests_a_file_under_its_directories() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(dir.path(), "src/deep/main.rs", "fn main() {}\n");
+        git(dir.path(), DATE, &["add", "."]);
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        let TreeNode::Dir { children, .. } = &tree[0] else {
+            panic!("expected a dir first, got {tree:?}");
+        };
+        let TreeNode::Dir { children, .. } = &children[0] else {
+            panic!("expected a nested dir, got {children:?}");
+        };
+        assert_eq!(names(children), ["main.rs"]);
     }
 
-    fn open(dir: &std::path::Path) -> gix::Repository {
-        gix::open(dir).expect("open")
+    #[test]
+    fn the_tree_puts_directories_before_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(dir.path(), "src/main.rs", "fn main() {}\n");
+        git(dir.path(), DATE, &["add", "."]);
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        assert_eq!(names(&tree), ["src", "file.txt"]);
+    }
+
+    #[test]
+    fn the_tree_leaves_out_an_ignored_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(dir.path(), ".gitignore", "target\n");
+        git(dir.path(), DATE, &["add", ".gitignore"]);
+        git(dir.path(), DATE, &["commit", "-m", "ignore"]);
+        write(dir.path(), "target/build.log", "noise\n");
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        assert!(!names(&tree).contains(&"target"), "got: {:?}", names(&tree));
+    }
+
+    #[test]
+    fn build_level_of_no_paths_is_an_empty_tree() {
+        assert!(build_level(&[], &super::BTreeMap::new(), "", 0).is_empty());
     }
 
     #[test]
     fn read_branches_marks_the_checked_out_branch_as_current() {
         let dir = tempfile::tempdir().expect("tempdir");
-        repo_with_a_commit(dir.path(), "2020-01-01T00:00:00Z");
-        git(dir.path(), "2020-01-01T00:00:00Z", &["branch", "other"]);
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["branch", "other"]);
 
         let list = read_branches(&open(dir.path())).expect("should read");
         let current: Vec<_> = list
@@ -558,12 +678,8 @@ mod tests {
     #[test]
     fn read_branches_marks_nothing_as_current_when_head_is_detached() {
         let dir = tempfile::tempdir().expect("tempdir");
-        repo_with_a_commit(dir.path(), "2020-01-01T00:00:00Z");
-        git(
-            dir.path(),
-            "2020-01-01T00:00:00Z",
-            &["checkout", "--detach"],
-        );
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["checkout", "--detach"]);
 
         let list = read_branches(&open(dir.path())).expect("should read");
         assert!(!list.branches.iter().any(|b| b.is_current));
@@ -572,12 +688,8 @@ mod tests {
     #[test]
     fn read_branches_names_the_commit_a_detached_head_sits_on() {
         let dir = tempfile::tempdir().expect("tempdir");
-        repo_with_a_commit(dir.path(), "2020-01-01T00:00:00Z");
-        git(
-            dir.path(),
-            "2020-01-01T00:00:00Z",
-            &["checkout", "--detach"],
-        );
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["checkout", "--detach"]);
 
         let list = read_branches(&open(dir.path())).expect("should read");
         assert!(list.detached_head.is_some());
@@ -586,7 +698,7 @@ mod tests {
     #[test]
     fn read_branches_reports_no_detached_head_while_on_a_branch() {
         let dir = tempfile::tempdir().expect("tempdir");
-        repo_with_a_commit(dir.path(), "2020-01-01T00:00:00Z");
+        repo_with_a_commit(dir.path());
 
         let list = read_branches(&open(dir.path())).expect("should read");
         assert_eq!(list.detached_head, None);
@@ -595,7 +707,7 @@ mod tests {
     #[test]
     fn read_branches_puts_the_most_recently_committed_branch_first() {
         let dir = tempfile::tempdir().expect("tempdir");
-        repo_with_a_commit(dir.path(), "2020-01-01T00:00:00Z");
+        repo_with_a_commit(dir.path());
         git(
             dir.path(),
             "2021-06-01T00:00:00Z",
@@ -618,7 +730,7 @@ mod tests {
     #[test]
     fn read_branches_reports_no_counts_for_a_branch_without_an_upstream() {
         let dir = tempfile::tempdir().expect("tempdir");
-        repo_with_a_commit(dir.path(), "2020-01-01T00:00:00Z");
+        repo_with_a_commit(dir.path());
 
         let list = read_branches(&open(dir.path())).expect("should read");
         assert_eq!(
@@ -632,12 +744,12 @@ mod tests {
     fn clone_with_upstream(root: &std::path::Path) -> std::path::PathBuf {
         let origin = root.join("origin");
         std::fs::create_dir(&origin).expect("create origin");
-        repo_with_a_commit(&origin, "2020-01-01T00:00:00Z");
+        repo_with_a_commit(&origin);
 
         let clone = root.join("clone");
         git(
             root,
-            "2020-01-01T00:00:00Z",
+            DATE,
             &["clone", &origin.to_string_lossy(), &clone.to_string_lossy()],
         );
         clone
