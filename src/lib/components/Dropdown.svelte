@@ -17,12 +17,13 @@
    * @property {string} value
    * @property {(value: string) => void} onChange
    * @property {number} [width]
+   * @property {string} [placeholder]
    * @property {() => void} [onAddNew]
    * @property {string} [addNewLabel]
    */
 
   /** @type {Props} */
-  let { icon, label, sublabel, options, value, onChange, width = 240, onAddNew, addNewLabel = 'Add new…' } = $props();
+  let { icon, label, sublabel, options, value, onChange, width = 240, onAddNew, addNewLabel = 'Add new…', placeholder = '' } = $props();
 
   let open = $state(false);
   let root = $state();
@@ -51,7 +52,7 @@
       <Icon name={icon} size={13} color="var(--text-tertiary)" />
     {/if}
     <span style="font-size:var(--text-sm);font-weight:500;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-      {current ? current.label : ''}
+      {current ? current.label : placeholder}
     </span>
     <Icon name="chevron-down" size={12} color="var(--text-tertiary)" />
   </button>

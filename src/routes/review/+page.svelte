@@ -68,6 +68,9 @@
     if (fileFilter.trim() && shownTree.length === 0) return "no-match";
     return null;
   });
+  // Nothing has been added on this machine yet, so the reviewer's next step is the
+  // folder picker rather than the Repo dropdown.
+  let noRepos = $derived(reviewState.repos.length === 0);
   let loadingFiles = $derived(reviewState.loadingRepos || reviewState.loadingBranches || reviewState.loadingTree);
   // An unchanged file has no diff, so it opens in File View instead (CONTEXT.md).
   let isFileView = $derived(reviewState.selectedView === "file");
@@ -183,6 +186,10 @@
     toast("已複製這則評論", { variant: "success" });
   }
 
+  function addRepo() {
+    closeThread();
+    reviewState.addRepo();
+  }
   function selectRepo(id: string) {
     closeThread();
     reviewState.selectRepo(id);
@@ -190,6 +197,10 @@
   function selectBranch(name: string) {
     closeThread();
     reviewState.selectBranch(name);
+  }
+  function setBaseBranch(name: string) {
+    closeThread();
+    reviewState.setBaseBranch(name);
   }
   function setDiffMode(mode: string) {
     closeThread();
@@ -269,12 +280,26 @@
       options={repoOptions}
       value={reviewState.repoId ?? ""}
       onChange={selectRepo}
-      onAddNew={() => toast("新增 repo 的資料夾選擇器尚未接上")}
+      onAddNew={addRepo}
       addNewLabel="Add repo…"
+      placeholder="Select repo…"
       width={260}
     />
     <Icon name="chevron-right" size={12} color="var(--border-default)" />
     <Dropdown icon="git-branch" label="Branch" options={branchOptions} value={reviewState.branch ?? ""} onChange={selectBranch} width={280} />
+    {#if reviewState.diffMode === "branch"}
+      <!-- Only Branch mode compares against a Base Branch (CONTEXT.md: Diff Mode). -->
+      <span class="topbar-vs">vs</span>
+      <Dropdown
+        icon="git-merge"
+        label="Base Branch"
+        sublabel="Base branch"
+        options={branchOptions}
+        value={reviewState.baseBranch ?? ""}
+        onChange={setBaseBranch}
+        width={280}
+      />
+    {/if}
     <div class="topbar-spacer"></div>
     <FetchButton fetching={reviewState.fetching} lastFetched={reviewState.lastFetched ?? undefined} onFetch={() => reviewState.fetchRemoteBranch()} />
   </header>
@@ -298,7 +323,14 @@
         {#if loadingFiles}
           <EmptyState size="sm" icon="loader" title="載入中…" />
         {:else if !reviewState.repoId}
-          <EmptyState size="sm" icon="folder-git-2" title="尚未選擇 repo" hint="從上方選擇 repo 與 branch 後，這裡會顯示變更的檔案。" />
+          <EmptyState
+            size="sm"
+            icon="folder-git-2"
+            title={noRepos ? "尚未加入 repo" : "尚未選擇 repo"}
+            hint={noRepos
+              ? "從上方 Repo 選單的「Add repo…」加入本機 git repo。"
+              : "從上方選擇 repo 與 branch 後，這裡會顯示變更的檔案。"}
+          />
         {:else if sidebarEmptyState === "no-diff"}
           <EmptyState size="sm" icon="git-compare" title="此分支沒有變更" hint="切換到有變更的分支，或勾選「顯示所有檔案」瀏覽整個專案。" />
         {:else if sidebarEmptyState === "no-match"}
@@ -321,7 +353,14 @@
       </main>
     {:else if !reviewState.repoId}
       <main class="diff-panel diff-panel-empty">
-        <EmptyState size="md" icon="folder-git-2" title="選擇一個 repo 開始" hint="從左上角選擇 repo 與 branch，即可檢視變更並開始留言。" />
+        <EmptyState
+          size="md"
+          icon="folder-git-2"
+          title={noRepos ? "加入一個 repo 開始" : "選擇一個 repo 開始"}
+          hint={noRepos
+            ? "從左上角 Repo 選單的「Add repo…」選擇本機 git repo 資料夾。"
+            : "從左上角選擇 repo 與 branch，即可檢視變更並開始留言。"}
+        />
       </main>
     {:else if !reviewState.selectedFile && changedTree.length === 0}
       <main class="diff-panel diff-panel-empty">
@@ -460,6 +499,12 @@
     color: var(--text-primary);
   }
 
+  .topbar-vs {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
   .topbar-spacer {
     flex: 1;
     min-width: 8px;

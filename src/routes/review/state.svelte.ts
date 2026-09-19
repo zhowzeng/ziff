@@ -1,5 +1,14 @@
 import { toast } from '$lib/toast/state.svelte';
-import { fetchRemote, getFileContent, getFileDiff, getFileTree, listBranches, listRepos } from './api';
+import {
+  addRepo as addRepoCommand,
+  fetchRemote,
+  getFileContent,
+  getFileDiff,
+  getFileTree,
+  listBranches,
+  listRepos,
+  pickRepoFolder,
+} from './api';
 import { findFileNode, firstFilePath, pruneToChanged } from './helpers';
 import type { Branch, DiffHunk, DiffMode, DiffSpec, Repo, TreeNode } from './types';
 
@@ -10,6 +19,9 @@ class ReviewState {
   repoId = $state<string | null>(null);
   branches = $state<Branch[]>([]);
   branch = $state<string | null>(null);
+  // What a Branch-mode diff compares against (CONTEXT.md: Base Branch). Starts at the
+  // Repo's default branch, and the reviewer can pick any other branch instead.
+  baseBranch = $state<string | null>(null);
   diffMode = $state<DiffMode>('unstaged');
   view = $state<ViewMode>('unified');
 
@@ -41,9 +53,7 @@ class ReviewState {
   spec = $derived.by<DiffSpec | null>(() => {
     if (!this.repoId || !this.branch) return null;
     const spec: DiffSpec = { repoId: this.repoId, branch: this.branch, diffMode: this.diffMode };
-    // Branch mode needs something to compare against. Until there's a base-branch
-    // picker it's the repo's default branch (CONTEXT.md: Base Branch).
-    if (this.diffMode === 'branch' && this.repo) spec.baseBranch = this.repo.defaultBranch;
+    if (this.diffMode === 'branch' && this.baseBranch) spec.baseBranch = this.baseBranch;
     return spec;
   });
 
@@ -59,11 +69,34 @@ class ReviewState {
     }
   }
 
+  // Picks a folder, registers it as a Repo, and opens it for review. A folder that's
+  // already registered just gets selected again.
+  async addRepo() {
+    let path: string | null;
+    try {
+      path = await pickRepoFolder();
+    } catch (e) {
+      toast(`開啟資料夾選擇器失敗：${e}`, { variant: 'danger' });
+      return;
+    }
+    if (!path) return;
+    try {
+      const repo = await addRepoCommand(path);
+      if (!this.repos.some((r) => r.id === repo.id)) this.repos = [...this.repos, repo];
+      await this.selectRepo(repo.id);
+    } catch (e) {
+      toast(`新增 repo 失敗：${e}`, { variant: 'danger' });
+    }
+  }
+
   async selectRepo(id: string) {
     this.repoId = id;
     this.branch = null;
     this.branches = [];
     this.tree = [];
+    // Each Repo brings its own default branch, so the previous Repo's base branch
+    // doesn't carry over.
+    this.baseBranch = this.repo?.defaultBranch ?? null;
     this.#clearSelection();
     this.#treeSeq++;
     this.#diffSeq++;
@@ -86,6 +119,11 @@ class ReviewState {
 
   async selectBranch(name: string) {
     this.branch = name;
+    await this.reloadTree();
+  }
+
+  async setBaseBranch(name: string) {
+    this.baseBranch = name;
     await this.reloadTree();
   }
 
