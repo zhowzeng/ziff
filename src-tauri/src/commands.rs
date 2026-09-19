@@ -254,13 +254,23 @@ pub fn get_file_content(
 ) -> Result<FileContent, String> {
     let root = repo_root(&app, &repo_id)?;
     let file = resolve_in_repo(&root, &path)?;
-    let bytes = std::fs::read(&file).map_err(|e| format!("Cannot read {path}: {e}"))?;
-    // A file Ziff cannot number by line cannot carry a Comment either, so it is an
-    // error rather than lossy text.
-    let text = String::from_utf8(bytes).map_err(|_| format!("{path} is not a UTF-8 text file"))?;
-    Ok(FileContent {
-        lines: split_lines(&text),
-    })
+    read_file_content(&file).map_err(|e| format!("Cannot read {path}: {e}"))
+}
+
+/// A file that is not valid UTF-8 is reported as binary rather than decoded lossily:
+/// its line numbers would be made up, and a Comment anchors to a line number.
+fn read_file_content(file: &Path) -> std::io::Result<FileContent> {
+    let bytes = std::fs::read(file)?;
+    match String::from_utf8(bytes) {
+        Ok(text) => Ok(FileContent {
+            lines: split_lines(&text),
+            binary: false,
+        }),
+        Err(_) => Ok(FileContent {
+            lines: Vec::new(),
+            binary: true,
+        }),
+    }
 }
 
 /// Splits file text into the lines File View numbers from 1. The newline that ends a
@@ -287,7 +297,7 @@ pub fn fetch_remote(_repo_id: String) -> Result<FetchResult, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_repo_root, read_repo, resolve_in_repo, split_lines};
+    use super::{find_repo_root, read_file_content, read_repo, resolve_in_repo, split_lines};
 
     /// Lays out a git repository whose HEAD is on `head_branch`, optionally with an
     /// `origin/HEAD` symref — the two things `default_branch` reads.
@@ -428,6 +438,37 @@ mod tests {
 
         let err = resolve_in_repo(&repo, "link.txt").expect_err("should reject");
         assert_eq!(err, "link.txt is outside the repo");
+    }
+
+    #[test]
+    fn read_file_content_reports_a_file_that_is_not_utf8_as_binary() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("logo.png");
+        // A PNG's first bytes: 0x89 never starts a valid UTF-8 sequence.
+        std::fs::write(&file, [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]).expect("write");
+
+        let content = read_file_content(&file).expect("should read");
+        assert!(content.binary);
+    }
+
+    #[test]
+    fn read_file_content_reports_a_binary_file_as_having_no_lines() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("logo.png");
+        std::fs::write(&file, [0x89, b'P', b'N', b'G']).expect("write");
+
+        let content = read_file_content(&file).expect("should read");
+        assert!(content.lines.is_empty());
+    }
+
+    #[test]
+    fn read_file_content_reports_a_text_file_as_not_binary() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn main() {}\n").expect("write");
+
+        let content = read_file_content(&file).expect("should read");
+        assert!(!content.binary);
     }
 
     #[test]

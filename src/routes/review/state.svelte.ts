@@ -34,6 +34,7 @@ class ReviewState {
   selectedView = $state<'diff' | 'file' | null>(null);
   diffHunks = $state<DiffHunk[]>([]);
   fileLines = $state<string[]>([]);
+  fileBinary = $state(false);
 
   loadingRepos = $state(false);
   loadingBranches = $state(false);
@@ -195,6 +196,7 @@ class ReviewState {
     this.selectedView = view;
     this.diffHunks = [];
     this.fileLines = [];
+    this.fileBinary = false;
     if (view === 'diff') await this.#loadDiff(spec, path, seq);
     else await this.#loadFileContent(spec.repoId, path, seq);
   }
@@ -219,6 +221,7 @@ class ReviewState {
       const content = await getFileContent(repoId, path);
       if (seq !== this.#diffSeq) return;
       this.fileLines = content.lines;
+      this.fileBinary = content.binary;
     } catch (e) {
       if (seq !== this.#diffSeq) return;
       toast(`載入檔案內容失敗：${e}`, { variant: 'danger' });
@@ -232,6 +235,7 @@ class ReviewState {
     this.selectedView = null;
     this.diffHunks = [];
     this.fileLines = [];
+    this.fileBinary = false;
   }
 
   async fetchRemoteBranch() {

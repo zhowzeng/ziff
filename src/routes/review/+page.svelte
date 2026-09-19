@@ -416,6 +416,10 @@
         {#if isFileView}
           {#if reviewState.loadingFile}
             <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入檔案…" /></div>
+          {:else if reviewState.fileBinary}
+            <div class="diff-body-empty">
+              <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案不是文字檔，無法逐行顯示，也無法留言。" />
+            </div>
           {:else if reviewState.fileLines.length === 0}
             <div class="diff-body-empty">
               <EmptyState size="md" icon="file" title="這個檔案是空的" hint="檔案沒有任何內容可以顯示。" />
