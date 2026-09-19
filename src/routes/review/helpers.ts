@@ -104,21 +104,21 @@ export function flattenHunks(hunks: DiffHunk[]): FlatLine[] {
 export interface CommentAnchor {
   lineStart: number;
   lineEnd?: number;
-  side: 'new' | 'old' | 'file';
+  side: 'new' | 'file';
 }
 
-// Line numbers for a selected idx range. Both ends are read off the same side of
-// the diff — the new side when the selection touches it at all, the old side for a
-// pure-deletion selection — so the range can never come out reversed.
+// Line numbers for a selected idx range, always read off the new side. A selection
+// can sweep over del lines, but it can't start on one (DiffLine withholds the
+// affordance there), so there is always a new-side number to anchor to and the range
+// can never come out reversed.
 export function lineRange(lines: FlatLine[], lo: number, hi: number): CommentAnchor {
-  const selected = lines.slice(lo, hi + 1).map((f) => f.line);
-  const isNo = (n: number | null): n is number => n !== null;
-  const newNos = selected.map((l) => l.newNo).filter(isNo);
-  const useNew = newNos.length > 0;
-  const nos = useNew ? newNos : selected.map((l) => l.oldNo).filter(isNo);
+  const nos = lines
+    .slice(lo, hi + 1)
+    .map((f) => f.line.newNo)
+    .filter((n): n is number => n !== null);
   const lineStart = nos[0] ?? 0;
   const lineEnd = nos[nos.length - 1] ?? lineStart;
-  return { lineStart, lineEnd: lineEnd === lineStart ? undefined : lineEnd, side: useNew ? 'new' : 'old' };
+  return { lineStart, lineEnd: lineEnd === lineStart ? undefined : lineEnd, side: 'new' };
 }
 
 // File View shows the whole worktree file, so its lines are numbered from 1 with no
