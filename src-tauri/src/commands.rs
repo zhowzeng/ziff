@@ -1,7 +1,11 @@
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use crate::diff;
 use crate::store;
 use crate::types::{
-    Branch, Changes, DiffHunk, DiffLine, DiffSpec, FetchResult, FileContent, LineKind, Repo,
-    TreeNode,
+    Branch, BranchList, Changes, DiffHunk, DiffLine, DiffSpec, FetchResult, FileContent, LineKind,
+    Repo, TreeNode,
 };
 
 #[tauri::command]
@@ -68,61 +72,216 @@ fn default_branch(git: &gix::Repository) -> String {
         .unwrap_or_else(|| "main".to_string())
 }
 
-#[tauri::command]
-pub fn list_branches(_repo_id: String) -> Result<Vec<Branch>, String> {
-    Ok(vec![
-        Branch {
-            name: "feature/xlsx-api-upgrade".into(),
-            is_current: true,
-            ahead: 3,
-            behind: 0,
-        },
-        Branch {
-            name: "main".into(),
-            is_current: false,
-            ahead: 0,
-            behind: 2,
-        },
-        Branch {
-            name: "develop".into(),
-            is_current: false,
-            ahead: 0,
-            behind: 0,
-        },
-        Branch {
-            name: "feature/mcp-comment-queue".into(),
-            is_current: false,
-            ahead: 0,
-            behind: 0,
-        },
-    ])
+/// Resolves a `repoId` from the frontend to the folder that Repo lives in.
+fn repo_root(app: &tauri::AppHandle, repo_id: &str) -> Result<PathBuf, String> {
+    find_repo_root(&store::load_repos(app)?, repo_id)
+}
+
+/// A Repo's id is the canonical path it had when it was added (ADR 0008), but the
+/// folder can have been moved or deleted since, so the path is resolved again here
+/// rather than trusted.
+fn find_repo_root(repos: &[Repo], repo_id: &str) -> Result<PathBuf, String> {
+    let repo = repos
+        .iter()
+        .find(|r| r.id == repo_id)
+        .ok_or_else(|| format!("No such repo: {repo_id}"))?;
+    std::fs::canonicalize(&repo.path)
+        .map_err(|e| format!("Repo folder is no longer readable: {} ({e})", repo.path))
+}
+
+/// Turns a Repo-relative path from the frontend into an absolute one, refusing
+/// anything that lands outside the Repo.
+///
+/// ADR 0005 puts this check in Rust rather than in static capability config, because
+/// a Repo is an arbitrary folder added at runtime. `path` is caller-supplied, so both
+/// `../` and a symlink pointing out of the Repo have to be caught *after* the path is
+/// resolved on disk -- inspecting the string alone would miss the symlink.
+fn resolve_in_repo(root: &Path, path: &str) -> Result<PathBuf, String> {
+    let resolved = std::fs::canonicalize(root.join(path))
+        .map_err(|e| format!("Cannot resolve {path}: {e}"))?;
+    if !resolved.starts_with(root) {
+        return Err(format!("{path} is outside the repo"));
+    }
+    Ok(resolved)
 }
 
 #[tauri::command]
-pub fn get_file_tree(_spec: DiffSpec) -> Result<Vec<TreeNode>, String> {
-    Ok(vec![
-        TreeNode::Dir {
-            name: "src".into(),
-            path: "src".into(),
-            children: vec![
-                TreeNode::File {
-                    name: "xlsx_tool.rs".into(),
-                    path: "src/xlsx_tool.rs".into(),
-                    changes: Some(Changes { add: 12, del: 4 }),
-                },
-                TreeNode::File {
-                    name: "main.rs".into(),
-                    path: "src/main.rs".into(),
-                    changes: None,
-                },
-            ],
+pub fn list_branches(app: tauri::AppHandle, repo_id: String) -> Result<BranchList, String> {
+    let root = repo_root(&app, &repo_id)?;
+    let git = gix::open(&root).map_err(|e| format!("Cannot open {}: {e}", root.display()))?;
+    read_branches(&git).map_err(|e| format!("Cannot list branches: {e}"))
+}
+
+/// The Repo's local branches, most recently committed first.
+///
+/// Recency rather than alphabetical order: this list is the Base Branch picker, and the
+/// branch a reviewer wants to compare against is far more likely to be one they have
+/// touched than one whose name sorts early. Remote-tracking branches are deliberately
+/// left out for now -- see the issue this came from.
+fn read_branches(
+    git: &gix::Repository,
+) -> Result<BranchList, Box<dyn std::error::Error + Send + Sync>> {
+    let head = git.head_name()?;
+    let current = head.as_ref().map(|name| name.shorten().to_string());
+
+    let mut rows = Vec::new();
+    for reference in git.references()?.local_branches()? {
+        let mut reference = reference?;
+        let name = reference.name().shorten().to_string();
+        let tip = reference.peel_to_id()?.detach();
+        let committed_at = git.find_commit(tip)?.time()?.seconds;
+        let (ahead, behind) = upstream_gap(git, &reference, tip);
+        rows.push((
+            committed_at,
+            Branch {
+                is_current: current.as_deref() == Some(name.as_str()),
+                name,
+                ahead,
+                behind,
+            },
+        ));
+    }
+    rows.sort_by(|(a_time, a), (b_time, b)| b_time.cmp(a_time).then_with(|| a.name.cmp(&b.name)));
+
+    Ok(BranchList {
+        branches: rows.into_iter().map(|(_, branch)| branch).collect(),
+        // A detached HEAD is on no branch at all, so every `is_current` above is false
+        // and the frontend needs this to say what is checked out instead.
+        detached_head: match head {
+            Some(_) => None,
+            None => Some(git.head_id()?.shorten_or_id().to_string()),
         },
-        TreeNode::File {
-            name: "Cargo.toml".into(),
-            path: "Cargo.toml".into(),
-            changes: Some(Changes { add: 2, del: 1 }),
-        },
-    ])
+    })
+}
+
+/// Commits each side has that the other does not, or `(None, None)` when the branch has
+/// no upstream -- "nothing to compare" and "in sync" are different answers.
+fn upstream_gap(
+    git: &gix::Repository,
+    reference: &gix::Reference<'_>,
+    tip: gix::ObjectId,
+) -> (Option<u32>, Option<u32>) {
+    let Some(Ok(upstream_name)) = reference.remote_tracking_ref_name(gix::remote::Direction::Fetch)
+    else {
+        return (None, None);
+    };
+    // The name is derived from the refspec, so it can name a ref that was never fetched.
+    let Ok(mut upstream) = git.find_reference(upstream_name.as_ref()) else {
+        return (None, None);
+    };
+    let Ok(upstream_tip) = upstream.peel_to_id() else {
+        return (None, None);
+    };
+    let upstream_tip = upstream_tip.detach();
+    (
+        count_commits(git, tip, upstream_tip),
+        count_commits(git, upstream_tip, tip),
+    )
+}
+
+/// `git rev-list --count <hidden>..<tip>`.
+fn count_commits(git: &gix::Repository, tip: gix::ObjectId, hidden: gix::ObjectId) -> Option<u32> {
+    let walk = git
+        .rev_walk(Some(tip))
+        .with_hidden(Some(hidden))
+        .all()
+        .ok()?;
+    let mut count = 0;
+    for info in walk {
+        info.ok()?;
+        count += 1;
+    }
+    Some(count)
+}
+
+#[tauri::command]
+pub fn get_file_tree(app: tauri::AppHandle, spec: DiffSpec) -> Result<Vec<TreeNode>, String> {
+    let root = repo_root(&app, &spec.repo_id)?;
+    let git = gix::open(&root).map_err(|e| format!("Cannot open {}: {e}", root.display()))?;
+    read_file_tree(&git, &spec).map_err(|e| format!("Cannot list changed files: {e}"))
+}
+
+/// The sidebar's tree: every file the checkout tracks, with `changes` on the ones that
+/// differ in this Diff Mode.
+///
+/// Unchanged files are in here on purpose. "顯示所有檔案" browses the whole project, and
+/// File View lets a reviewer comment on a file with no diff at all (ADR 0007) -- the
+/// frontend prunes to the changed ones when that box is unticked, so returning only
+/// changed files here would take both away.
+fn read_file_tree(
+    git: &gix::Repository,
+    spec: &DiffSpec,
+) -> Result<Vec<TreeNode>, Box<dyn std::error::Error + Send + Sync>> {
+    let changed = diff::changed_files(git, spec)?;
+    let mut changes = BTreeMap::new();
+    let mut renames = BTreeMap::new();
+    let mut moved_away = Vec::new();
+    for file in &changed {
+        changes.insert(file.path.clone(), diff::count_changes(git, file)?);
+        if let Some(old_path) = &file.old_path {
+            renames.insert(file.path.clone(), old_path.clone());
+            moved_away.push(old_path.clone());
+        }
+    }
+    // A file deleted on this side isn't in the index any more, so it has to be carried
+    // in from the change list or it would vanish from the tree entirely.
+    let extra: Vec<String> = changed.into_iter().map(|file| file.path).collect();
+    let mut paths = diff::tracked_paths(git, &extra)?;
+    // A renamed file's old path is still in the index until the rename is committed.
+    // Leaving it in would list a file the worktree no longer has, right next to the
+    // same file under its new name.
+    paths.retain(|path| !moved_away.contains(path));
+    Ok(build_level(&paths, &changes, &renames, "", 0))
+}
+
+/// Groups sorted repo-relative paths into one level of the tree, recursing per
+/// directory. Sorted input is what makes this work: everything under one directory is
+/// adjacent, so a directory's children are a contiguous slice.
+fn build_level(
+    paths: &[String],
+    changes: &BTreeMap<String, Changes>,
+    renames: &BTreeMap<String, String>,
+    prefix: &str,
+    depth: usize,
+) -> Vec<TreeNode> {
+    let mut nodes = Vec::new();
+    let mut i = 0;
+    while i < paths.len() {
+        let name = paths[i]
+            .split('/')
+            .nth(depth)
+            .unwrap_or_default()
+            .to_string();
+        let is_file = paths[i].split('/').count() == depth + 1;
+        if is_file {
+            nodes.push(TreeNode::File {
+                name,
+                changes: changes.get(&paths[i]).copied(),
+                renamed_from: renames.get(&paths[i]).cloned(),
+                path: paths[i].clone(),
+            });
+            i += 1;
+        } else {
+            let dir_prefix = format!("{prefix}{name}/");
+            let len = paths[i..]
+                .iter()
+                .take_while(|path| path.starts_with(&dir_prefix))
+                .count();
+            nodes.push(TreeNode::Dir {
+                path: format!("{prefix}{name}"),
+                name,
+                children: build_level(&paths[i..i + len], changes, renames, &dir_prefix, depth + 1),
+            });
+            i += len;
+        }
+    }
+    // Directories first, the way a file tree is normally read.
+    nodes.sort_by(|a, b| match (a, b) {
+        (TreeNode::Dir { .. }, TreeNode::File { .. }) => std::cmp::Ordering::Less,
+        (TreeNode::File { .. }, TreeNode::Dir { .. }) => std::cmp::Ordering::Greater,
+        _ => std::cmp::Ordering::Equal,
+    });
+    nodes
 }
 
 #[tauri::command]
@@ -208,20 +367,48 @@ pub fn get_file_diff(_spec: DiffSpec, path: String) -> Result<Vec<DiffHunk>, Str
     }
 }
 
+/// Reads a file the way File View shows it: the worktree copy, never the index or
+/// HEAD, because the `path:L12` handed to a CLI agent is resolved against the
+/// worktree too (ADR 0007, ADR 0010).
 #[tauri::command]
-pub fn get_file_content(_repo_id: String, path: String) -> Result<FileContent, String> {
-    let lines = match path.as_str() {
-        "src/xlsx_tool.rs" => vec![
-            "use calamine::{open_workbook, Reader, Xlsx};".to_string(),
-            "".to_string(),
-            "calamine = \"0.24\"".to_string(),
-            "".to_string(),
-            "let mut wb: Xlsx<_> = open_workbook_auto(path)?;".to_string(),
-            "let sheet = wb.worksheet_range(\"Sheet1\")?;".to_string(),
-        ],
-        _ => vec![format!("// mock contents of {path}")],
-    };
-    Ok(FileContent { lines })
+pub fn get_file_content(
+    app: tauri::AppHandle,
+    repo_id: String,
+    path: String,
+) -> Result<FileContent, String> {
+    let root = repo_root(&app, &repo_id)?;
+    let file = resolve_in_repo(&root, &path)?;
+    read_file_content(&file).map_err(|e| format!("Cannot read {path}: {e}"))
+}
+
+/// A file that is not valid UTF-8 is reported as binary rather than decoded lossily:
+/// its line numbers would be made up, and a Comment anchors to a line number.
+fn read_file_content(file: &Path) -> std::io::Result<FileContent> {
+    let bytes = std::fs::read(file)?;
+    match String::from_utf8(bytes) {
+        Ok(text) => Ok(FileContent {
+            lines: split_lines(&text),
+            binary: false,
+        }),
+        Err(_) => Ok(FileContent {
+            lines: Vec::new(),
+            binary: true,
+        }),
+    }
+}
+
+/// Splits file text into the lines File View numbers from 1. The newline that ends a
+/// well-formed file does not start a further line, and a CRLF checkout must not render
+/// a stray carriage return on every line.
+fn split_lines(text: &str) -> Vec<String> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    text.strip_suffix('\n')
+        .unwrap_or(text)
+        .split('\n')
+        .map(|line| line.strip_suffix('\r').unwrap_or(line).to_string())
+        .collect()
 }
 
 #[tauri::command]
@@ -234,7 +421,12 @@ pub fn fetch_remote(_repo_id: String) -> Result<FetchResult, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::read_repo;
+    use super::{
+        build_level, find_repo_root, read_branches, read_file_content, read_file_tree, read_repo,
+        resolve_in_repo, split_lines,
+    };
+    use crate::test_repo::{git, open, repo_with_a_commit, write, DATE};
+    use crate::types::{DiffMode, DiffSpec, TreeNode};
 
     /// Lays out a git repository whose HEAD is on `head_branch`, optionally with an
     /// `origin/HEAD` symref — the two things `default_branch` reads.
@@ -290,5 +482,416 @@ mod tests {
 
         let repo = read_repo(&dir.path().to_string_lossy()).expect("should read");
         assert_eq!(repo.default_branch, "develop");
+    }
+
+    /// A Repo entry as `repos.json` holds it, pointing at `path`.
+    fn repo_entry(path: &std::path::Path) -> crate::types::Repo {
+        let path = path.to_string_lossy().into_owned();
+        crate::types::Repo {
+            id: path.clone(),
+            name: "repo".into(),
+            path,
+            default_branch: "main".into(),
+        }
+    }
+
+    #[test]
+    fn find_repo_root_rejects_an_id_that_is_not_in_the_list() {
+        let err = find_repo_root(&[], "/not/added").expect_err("should reject");
+        assert_eq!(err, "No such repo: /not/added");
+    }
+
+    #[test]
+    fn find_repo_root_reports_a_repo_folder_that_has_gone_away() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path().join("moved-away");
+        std::fs::create_dir(&root).expect("create repo dir");
+        let repos = vec![repo_entry(&root)];
+        std::fs::remove_dir(&root).expect("remove repo dir");
+
+        let err = find_repo_root(&repos, &repos[0].id).expect_err("should reject");
+        assert!(
+            err.starts_with("Repo folder is no longer readable:"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn resolve_in_repo_accepts_a_file_inside_the_repo() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = std::fs::canonicalize(dir.path()).expect("canonicalize");
+        std::fs::create_dir(root.join("src")).expect("create src");
+        std::fs::write(root.join("src/main.rs"), "fn main() {}").expect("write file");
+
+        let resolved = resolve_in_repo(&root, "src/main.rs").expect("should resolve");
+        assert_eq!(resolved, root.join("src/main.rs"));
+    }
+
+    #[test]
+    fn resolve_in_repo_rejects_a_relative_path_that_climbs_out() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = std::fs::canonicalize(dir.path()).expect("canonicalize");
+        let repo = root.join("repo");
+        std::fs::create_dir(&repo).expect("create repo dir");
+        std::fs::write(root.join("secret.txt"), "shh").expect("write outside file");
+
+        let err = resolve_in_repo(&repo, "../secret.txt").expect_err("should reject");
+        assert_eq!(err, "../secret.txt is outside the repo");
+    }
+
+    #[test]
+    fn resolve_in_repo_rejects_an_absolute_path() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = std::fs::canonicalize(dir.path()).expect("canonicalize");
+        let repo = root.join("repo");
+        std::fs::create_dir(&repo).expect("create repo dir");
+        let outside = root.join("secret.txt");
+        std::fs::write(&outside, "shh").expect("write outside file");
+
+        let err = resolve_in_repo(&repo, &outside.to_string_lossy()).expect_err("should reject");
+        assert!(err.ends_with("is outside the repo"), "got: {err}");
+    }
+
+    /// A symlink is why the guard resolves the path on disk instead of inspecting the
+    /// string: this one contains no `..` at all.
+    #[cfg(unix)]
+    #[test]
+    fn resolve_in_repo_rejects_a_symlink_pointing_out_of_the_repo() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = std::fs::canonicalize(dir.path()).expect("canonicalize");
+        let repo = root.join("repo");
+        std::fs::create_dir(&repo).expect("create repo dir");
+        let outside = root.join("secret.txt");
+        std::fs::write(&outside, "shh").expect("write outside file");
+        std::os::unix::fs::symlink(&outside, repo.join("link.txt")).expect("symlink");
+
+        let err = resolve_in_repo(&repo, "link.txt").expect_err("should reject");
+        assert_eq!(err, "link.txt is outside the repo");
+    }
+
+    fn unstaged_spec() -> DiffSpec {
+        DiffSpec {
+            repo_id: "/unused".into(),
+            branch: "main".into(),
+            diff_mode: DiffMode::Unstaged,
+            base_branch: None,
+        }
+    }
+
+    fn names(nodes: &[TreeNode]) -> Vec<&str> {
+        nodes
+            .iter()
+            .map(|node| match node {
+                TreeNode::Dir { name, .. } | TreeNode::File { name, .. } => name.as_str(),
+            })
+            .collect()
+    }
+
+    /// The sidebar browses the whole project ("顯示所有檔案") and File View comments on
+    /// files with no diff (ADR 0007), so an unchanged file has to be in the tree --
+    /// just without `changes`.
+    #[test]
+    fn the_tree_keeps_a_file_that_did_not_change() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        assert!(matches!(
+            tree.as_slice(),
+            [TreeNode::File { changes: None, .. }]
+        ));
+    }
+
+    #[test]
+    fn the_tree_marks_a_changed_file_with_its_counts() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(
+            dir.path(),
+            "file.txt",
+            "one
+two
+three
+four
+",
+        );
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        let TreeNode::File { changes, .. } = &tree[0] else {
+            panic!("expected a file, got {tree:?}");
+        };
+        assert_eq!(changes.map(|c| (c.add, c.del)), Some((1, 0)));
+    }
+
+    #[test]
+    fn the_tree_nests_a_file_under_its_directories() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(dir.path(), "src/deep/main.rs", "fn main() {}\n");
+        git(dir.path(), DATE, &["add", "."]);
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        let TreeNode::Dir { children, .. } = &tree[0] else {
+            panic!("expected a dir first, got {tree:?}");
+        };
+        let TreeNode::Dir { children, .. } = &children[0] else {
+            panic!("expected a nested dir, got {children:?}");
+        };
+        assert_eq!(names(children), ["main.rs"]);
+    }
+
+    #[test]
+    fn the_tree_puts_directories_before_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(dir.path(), "src/main.rs", "fn main() {}\n");
+        git(dir.path(), DATE, &["add", "."]);
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        assert_eq!(names(&tree), ["src", "file.txt"]);
+    }
+
+    #[test]
+    fn the_tree_leaves_out_an_ignored_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(dir.path(), ".gitignore", "target\n");
+        git(dir.path(), DATE, &["add", ".gitignore"]);
+        git(dir.path(), DATE, &["commit", "-m", "ignore"]);
+        write(dir.path(), "target/build.log", "noise\n");
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        assert!(!names(&tree).contains(&"target"), "got: {:?}", names(&tree));
+    }
+
+    /// The old path is still in the index until the rename is committed. Leaving it in
+    /// the tree would list a file the worktree no longer has, right beside the same
+    /// file under its new name.
+    #[test]
+    fn the_tree_drops_the_path_a_file_moved_away_from() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        let body: String = (1..=200).map(|i| format!("line {i}\n")).collect();
+        write(dir.path(), "big.txt", &body);
+        git(dir.path(), DATE, &["add", "."]);
+        git(dir.path(), DATE, &["commit", "-m", "big"]);
+        std::fs::rename(dir.path().join("big.txt"), dir.path().join("moved.txt")).expect("mv");
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        assert_eq!(names(&tree), ["file.txt", "moved.txt"]);
+    }
+
+    #[test]
+    fn the_tree_says_where_a_moved_file_came_from() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        let body: String = (1..=200).map(|i| format!("line {i}\n")).collect();
+        write(dir.path(), "big.txt", &body);
+        git(dir.path(), DATE, &["add", "."]);
+        git(dir.path(), DATE, &["commit", "-m", "big"]);
+        std::fs::rename(dir.path().join("big.txt"), dir.path().join("moved.txt")).expect("mv");
+
+        let tree = read_file_tree(&open(dir.path()), &unstaged_spec()).expect("tree");
+        let renamed: Vec<_> = tree
+            .iter()
+            .filter_map(|node| match node {
+                TreeNode::File { renamed_from, .. } => renamed_from.as_deref(),
+                TreeNode::Dir { .. } => None,
+            })
+            .collect();
+        assert_eq!(renamed, ["big.txt"]);
+    }
+
+    #[test]
+    fn build_level_of_no_paths_is_an_empty_tree() {
+        assert!(
+            build_level(&[], &super::BTreeMap::new(), &super::BTreeMap::new(), "", 0).is_empty()
+        );
+    }
+
+    #[test]
+    fn read_branches_marks_the_checked_out_branch_as_current() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["branch", "other"]);
+
+        let list = read_branches(&open(dir.path())).expect("should read");
+        let current: Vec<_> = list
+            .branches
+            .iter()
+            .filter(|b| b.is_current)
+            .map(|b| b.name.as_str())
+            .collect();
+        assert_eq!(current, ["main"]);
+    }
+
+    /// The gap ADR 0010 left open: with no branch checked out, nothing may be reported
+    /// as current, or the topbar would name a branch the reviewer is not on.
+    #[test]
+    fn read_branches_marks_nothing_as_current_when_head_is_detached() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["checkout", "--detach"]);
+
+        let list = read_branches(&open(dir.path())).expect("should read");
+        assert!(!list.branches.iter().any(|b| b.is_current));
+    }
+
+    #[test]
+    fn read_branches_names_the_commit_a_detached_head_sits_on() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["checkout", "--detach"]);
+
+        let list = read_branches(&open(dir.path())).expect("should read");
+        assert!(list.detached_head.is_some());
+    }
+
+    #[test]
+    fn read_branches_reports_no_detached_head_while_on_a_branch() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+
+        let list = read_branches(&open(dir.path())).expect("should read");
+        assert_eq!(list.detached_head, None);
+    }
+
+    #[test]
+    fn read_branches_puts_the_most_recently_committed_branch_first() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(
+            dir.path(),
+            "2021-06-01T00:00:00Z",
+            &["checkout", "-b", "newer"],
+        );
+        std::fs::write(dir.path().join("file.txt"), "two\n").expect("write");
+        git(
+            dir.path(),
+            "2021-06-01T00:00:00Z",
+            &["commit", "-am", "second"],
+        );
+
+        let list = read_branches(&open(dir.path())).expect("should read");
+        let names: Vec<_> = list.branches.iter().map(|b| b.name.as_str()).collect();
+        assert_eq!(names, ["newer", "main"]);
+    }
+
+    /// "No upstream" and "in sync" are different answers, so a branch with nothing to
+    /// compare against must not report 0.
+    #[test]
+    fn read_branches_reports_no_counts_for_a_branch_without_an_upstream() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+
+        let list = read_branches(&open(dir.path())).expect("should read");
+        assert_eq!(
+            (list.branches[0].ahead, list.branches[0].behind),
+            (None, None)
+        );
+    }
+
+    /// A clone, so `branch.main.merge` and `refs/remotes/origin/main` are set up the
+    /// way they are for a repo a reviewer actually works in.
+    fn clone_with_upstream(root: &std::path::Path) -> std::path::PathBuf {
+        let origin = root.join("origin");
+        std::fs::create_dir(&origin).expect("create origin");
+        repo_with_a_commit(&origin);
+
+        let clone = root.join("clone");
+        git(
+            root,
+            DATE,
+            &["clone", &origin.to_string_lossy(), &clone.to_string_lossy()],
+        );
+        clone
+    }
+
+    #[test]
+    fn read_branches_counts_commits_ahead_of_the_upstream() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let clone = clone_with_upstream(dir.path());
+        std::fs::write(clone.join("file.txt"), "local\n").expect("write");
+        git(
+            &clone,
+            "2020-02-01T00:00:00Z",
+            &["commit", "-am", "local work"],
+        );
+
+        let list = read_branches(&open(&clone)).expect("should read");
+        assert_eq!(list.branches[0].ahead, Some(1));
+    }
+
+    #[test]
+    fn read_branches_counts_commits_behind_the_upstream() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let clone = clone_with_upstream(dir.path());
+        let origin = dir.path().join("origin");
+        std::fs::write(origin.join("file.txt"), "remote\n").expect("write");
+        git(
+            &origin,
+            "2020-02-01T00:00:00Z",
+            &["commit", "-am", "remote work"],
+        );
+        git(&clone, "2020-02-01T00:00:00Z", &["fetch"]);
+
+        let list = read_branches(&open(&clone)).expect("should read");
+        assert_eq!(list.branches[0].behind, Some(1));
+    }
+
+    #[test]
+    fn read_file_content_reports_a_file_that_is_not_utf8_as_binary() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("logo.png");
+        // A PNG's first bytes: 0x89 never starts a valid UTF-8 sequence.
+        std::fs::write(&file, [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]).expect("write");
+
+        let content = read_file_content(&file).expect("should read");
+        assert!(content.binary);
+    }
+
+    #[test]
+    fn read_file_content_reports_a_binary_file_as_having_no_lines() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("logo.png");
+        std::fs::write(&file, [0x89, b'P', b'N', b'G']).expect("write");
+
+        let content = read_file_content(&file).expect("should read");
+        assert!(content.lines.is_empty());
+    }
+
+    #[test]
+    fn read_file_content_reports_a_text_file_as_not_binary() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("main.rs");
+        std::fs::write(&file, "fn main() {}\n").expect("write");
+
+        let content = read_file_content(&file).expect("should read");
+        assert!(!content.binary);
+    }
+
+    #[test]
+    fn split_lines_does_not_count_the_newline_that_ends_a_file() {
+        assert_eq!(split_lines("one\ntwo\n"), vec!["one", "two"]);
+    }
+
+    #[test]
+    fn split_lines_keeps_a_last_line_with_no_trailing_newline() {
+        assert_eq!(split_lines("one\ntwo"), vec!["one", "two"]);
+    }
+
+    #[test]
+    fn split_lines_strips_crlf() {
+        assert_eq!(split_lines("one\r\ntwo\r\n"), vec!["one", "two"]);
+    }
+
+    #[test]
+    fn split_lines_of_an_empty_file_has_no_lines() {
+        assert!(split_lines("").is_empty());
+    }
+
+    #[test]
+    fn split_lines_of_a_lone_newline_is_one_empty_line() {
+        assert_eq!(split_lines("\n"), vec![""]);
     }
 }

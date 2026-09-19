@@ -12,8 +12,17 @@ export interface Repo {
 export interface Branch {
   name: string;
   isCurrent: boolean;
-  ahead: number;
-  behind: number;
+  /** Commits this branch has that its upstream doesn't, or null with no upstream. */
+  ahead: number | null;
+  behind: number | null;
+}
+
+/** What `list_branches` returns: the branches, plus what HEAD is doing when it's on
+ *  none of them. */
+export interface BranchList {
+  branches: Branch[];
+  /** Short commit id when HEAD is detached, null when it's on a branch. */
+  detachedHead: string | null;
 }
 
 export interface DiffSpec {
@@ -30,7 +39,14 @@ export interface Changes {
 
 export type TreeNode =
   | { type: 'dir'; name: string; path: string; children: TreeNode[] }
-  | { type: 'file'; name: string; path: string; changes?: Changes };
+  | {
+      type: 'file';
+      name: string;
+      path: string;
+      changes?: Changes;
+      /** Where this file used to be, when it was renamed into `path`. */
+      renamedFrom: string | null;
+    };
 
 export type LineKind = 'context' | 'add' | 'del';
 
@@ -48,6 +64,8 @@ export interface DiffHunk {
 
 export interface FileContent {
   lines: string[];
+  /** A file Ziff cannot number by line, so File View says so instead of showing it. */
+  binary: boolean;
 }
 
 export interface FetchResult {

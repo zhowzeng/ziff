@@ -317,9 +317,11 @@
     <Icon name="chevron-right" size={12} color="var(--border-default)" />
     <!-- Not a picker: a comment's path:L12 is read against the worktree, so the branch
          under review is always the checked-out one (docs/decisions/0010). -->
-    <div class="topbar-branch" title="目前 checkout 的分支">
-      <Icon name="git-branch" size={13} color="var(--text-tertiary)" />
-      <span class="topbar-branch-name">{reviewState.branch ?? ""}</span>
+    <div class="topbar-branch" title={reviewState.detachedHead ? "HEAD 沒有指向任何分支" : "目前 checkout 的分支"}>
+      <Icon name={reviewState.detachedHead ? "git-commit-horizontal" : "git-branch"} size={13} color="var(--text-tertiary)" />
+      <span class="topbar-branch-name">
+        {reviewState.detachedHead ? `detached @ ${reviewState.detachedHead}` : (reviewState.branch ?? "")}
+      </span>
     </div>
     {#if reviewState.diffMode === "branch"}
       <!-- Only Branch mode compares against a Base Branch (CONTEXT.md: Diff Mode). -->
@@ -365,6 +367,13 @@
               ? "從上方 Repo 選單的「Add repo…」加入本機 git repo。"
               : "從上方選擇 repo 與 branch 後，這裡會顯示變更的檔案。"}
           />
+        {:else if reviewState.detachedHead}
+          <EmptyState
+            size="sm"
+            icon="git-commit-horizontal"
+            title="HEAD 沒有指向分支"
+            hint={`目前停在 ${reviewState.detachedHead}。Ziff review 的是已 checkout 的分支，先 checkout 一個分支再回來。`}
+          />
         {:else if sidebarEmptyState === "no-diff"}
           <EmptyState size="sm" icon="git-compare" title="此分支沒有變更" hint="切換到有變更的分支，或勾選「顯示所有檔案」瀏覽整個專案。" />
         {:else if sidebarEmptyState === "no-match"}
@@ -407,7 +416,7 @@
     {:else}
       <main class="diff-panel">
         <div class="diff-panel-header">
-          <div class="file-header-wrap"><FileHeader path={reviewState.selectedFile} /></div>
+          <div class="file-header-wrap"><FileHeader path={reviewState.selectedFile} renamedFrom={reviewState.selectedRenamedFrom} /></div>
           {#if !isFileView}
             <div class="view-toggle-wrap"><Segmented value={reviewState.view} onChange={(v) => (reviewState.view = v as typeof reviewState.view)} options={VIEW_MODES} /></div>
           {/if}
@@ -416,6 +425,10 @@
         {#if isFileView}
           {#if reviewState.loadingFile}
             <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入檔案…" /></div>
+          {:else if reviewState.fileBinary}
+            <div class="diff-body-empty">
+              <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案不是文字檔，無法逐行顯示，也無法留言。" />
+            </div>
           {:else if reviewState.fileLines.length === 0}
             <div class="diff-body-empty">
               <EmptyState size="md" icon="file" title="這個檔案是空的" hint="檔案沒有任何內容可以顯示。" />

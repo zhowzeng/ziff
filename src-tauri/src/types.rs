@@ -15,8 +15,21 @@ pub struct Repo {
 pub struct Branch {
     pub name: String,
     pub is_current: bool,
-    pub ahead: u32,
-    pub behind: u32,
+    /// Commits this branch has that its upstream does not, or `None` when there is no
+    /// upstream to count against -- which is not the same as being in sync.
+    pub ahead: Option<u32>,
+    pub behind: Option<u32>,
+}
+
+/// What `list_branches` hands back: the branches, plus what HEAD is doing when it is
+/// not on any of them. ADR 0010 makes the topbar a read-only indicator of what is
+/// checked out, so it has to be able to say "no branch" rather than name one.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchList {
+    pub branches: Vec<Branch>,
+    /// Short commit id when HEAD is detached, `None` when it is on a branch.
+    pub detached_head: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -57,6 +70,9 @@ pub enum TreeNode {
         name: String,
         path: String,
         changes: Option<Changes>,
+        /// Where this file used to be, when it was renamed into `path`. The old path is
+        /// not a node of its own -- the file moved, it wasn't deleted and recreated.
+        renamed_from: Option<String>,
     },
 }
 
@@ -88,6 +104,9 @@ pub struct DiffHunk {
 #[serde(rename_all = "camelCase")]
 pub struct FileContent {
     pub lines: Vec<String>,
+    /// A file Ziff cannot number by line, so File View shows it as such instead of
+    /// rendering lossy text no Comment could anchor to.
+    pub binary: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
