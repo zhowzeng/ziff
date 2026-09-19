@@ -56,6 +56,24 @@ export function rangeLabel(lineStart: number, lineEnd?: number) {
   return lineEnd && lineEnd !== lineStart ? `L${lineStart}–L${lineEnd}` : `L${lineStart}`;
 }
 
+// The text handed to a CLI coding agent, for both the Comment Queue and Copy Now
+// (docs/decisions/0001) — one formatter so the two can't drift apart.
+//
+// Deliberately ASCII-only (not rangeLabel above, which uses an en dash) — this text is
+// copied straight into a CLI agent's prompt.
+export function formatForAgent(comment: {
+  file: string;
+  lineStart: number;
+  lineEnd?: number;
+  text: string;
+}) {
+  const range =
+    comment.lineEnd && comment.lineEnd !== comment.lineStart
+      ? `L${comment.lineStart}-L${comment.lineEnd}`
+      : `L${comment.lineStart}`;
+  return `${comment.file}:${range}\n${comment.text}`;
+}
+
 // Comments now outlive the thread that created them, so they show the wall-clock time
 // they were written rather than a relative label that would silently go stale.
 export function formatTime(ts: number) {

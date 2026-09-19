@@ -4,6 +4,7 @@
   import Button from '$lib/components/Button.svelte';
   import Badge from '$lib/components/Badge.svelte';
   import QueueItem from './QueueItem.svelte';
+  import { formatForAgent } from '../helpers';
 
   /**
    * @typedef {Object} QueueItemData
@@ -24,21 +25,13 @@
   /** @type {Props} */
   let { items, onRemove, onClose } = $props();
 
-  // Deliberately ASCII-only (not helpers.ts' rangeLabel, which uses an en dash) —
-  // this text is copied straight into a CLI agent's prompt.
-  /** @param {QueueItemData} item */
-  function formatItem(item) {
-    const range = item.lineEnd && item.lineEnd !== item.lineStart ? `L${item.lineStart}-L${item.lineEnd}` : `L${item.lineStart}`;
-    return `${item.file}:${range}\n${item.text}`;
-  }
-
   /** @param {QueueItemData} item */
   function copyOne(item) {
-    navigator.clipboard.writeText(formatItem(item));
+    navigator.clipboard.writeText(formatForAgent(item));
   }
 
   function copyAll() {
-    navigator.clipboard.writeText(items.map(formatItem).join('\n\n'));
+    navigator.clipboard.writeText(items.map(formatForAgent).join('\n\n'));
   }
 
   const isMac = /Mac/.test(navigator.platform);
