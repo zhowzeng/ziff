@@ -4,6 +4,7 @@
   import DiffHunk from "./components/DiffHunk.svelte";
   import DiffLine from "./components/DiffLine.svelte";
   import DiffLineSplit from "./components/DiffLineSplit.svelte";
+  import FileLine from "./components/FileLine.svelte";
   import CommentThread from "./components/CommentThread.svelte";
   import Avatar from "$lib/components/Avatar.svelte";
   import Icon from "$lib/components/Icon.svelte";
@@ -22,6 +23,7 @@
   import {
     allDirPaths,
     branchMeta,
+    fileLineRange,
     flattenHunks,
     formatForAgent,
     formatTime,
@@ -67,6 +69,8 @@
     return null;
   });
   let loadingFiles = $derived(reviewState.loadingRepos || reviewState.loadingBranches || reviewState.loadingTree);
+  // An unchanged file has no diff, so it opens in File View instead (CONTEXT.md).
+  let isFileView = $derived(reviewState.selectedView === "file");
 
   let openThread = $state<{ lo: number; hi: number } | null>(null);
   let replyValue = $state("");
@@ -93,7 +97,8 @@
     if (!dragging) return;
     // A selection stays inside one hunk: line numbers aren't contiguous across hunk
     // boundaries, so a range spanning two hunks names lines that aren't in the diff.
-    if (flatLines[i]?.hunk !== flatLines[dragging.start]?.hunk) return;
+    // File View has no hunks — it's one continuous file — so nothing to stay inside of.
+    if (!isFileView && flatLines[i]?.hunk !== flatLines[dragging.start]?.hunk) return;
     dragging = { ...dragging, end: i };
   }
   function isSelected(i: number) {
@@ -121,7 +126,13 @@
     for (const f of flatLines) groups[f.hunk].lines.push(f);
     return groups;
   });
-  let threadRange = $derived(openThread ? lineRange(flatLines, openThread.lo, openThread.hi) : null);
+  // File View's lines are indexed straight off the file, so its anchors come from the
+  // line indexes themselves rather than from the diff's two numbering spaces.
+  let threadRange = $derived.by(() => {
+    if (!openThread) return null;
+    if (isFileView) return fileLineRange(openThread.lo, openThread.hi);
+    return lineRange(flatLines, openThread.lo, openThread.hi);
+  });
 
   // The thread renders straight out of the Comment Queue rather than keeping its own
   // copy, so an edit here reaches the text that gets handed to the CLI agent, and
@@ -324,10 +335,35 @@
       <main class="diff-panel">
         <div class="diff-panel-header">
           <div class="file-header-wrap"><FileHeader path={reviewState.selectedFile} /></div>
-          <div class="view-toggle-wrap"><Segmented value={reviewState.view} onChange={(v) => (reviewState.view = v as typeof reviewState.view)} options={VIEW_MODES} /></div>
+          {#if !isFileView}
+            <div class="view-toggle-wrap"><Segmented value={reviewState.view} onChange={(v) => (reviewState.view = v as typeof reviewState.view)} options={VIEW_MODES} /></div>
+          {/if}
         </div>
 
-        {#if reviewState.loadingDiff}
+        {#if isFileView}
+          {#if reviewState.loadingFile}
+            <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入檔案…" /></div>
+          {:else if reviewState.fileLines.length === 0}
+            <div class="diff-body-empty">
+              <EmptyState size="md" icon="file" title="這個檔案是空的" hint="檔案沒有任何內容可以顯示。" />
+            </div>
+          {:else}
+            {#each reviewState.fileLines as content, i (i)}
+              <FileLine
+                lineNo={i + 1}
+                {content}
+                index={i}
+                selected={isSelected(i)}
+                commented={commentedKeys.has(`file:${i + 1}`)}
+                onGutterDown={gutterDown}
+                onGutterEnter={gutterEnter}
+              />
+              {#if openThread && i === openThread.hi}
+                {@render commentBlock()}
+              {/if}
+            {/each}
+          {/if}
+        {:else if reviewState.loadingDiff}
           <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入 diff…" /></div>
         {:else if reviewState.diffHunks.length === 0}
           <div class="diff-body-empty">

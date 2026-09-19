@@ -97,13 +97,14 @@ export function flattenHunks(hunks: DiffHunk[]): FlatLine[] {
   return out;
 }
 
-// Where a comment is anchored. `side` records which of the diff's two numbering
-// spaces `lineStart`/`lineEnd` are counted in, so a range over old line numbers can
-// never be mistaken for one over new line numbers that happens to share a number.
+// Where a comment is anchored. `side` records which numbering space
+// `lineStart`/`lineEnd` are counted in — the diff's new or old side, or `file` for a
+// comment left in File View — so a range over one space can never be mistaken for a
+// range over another that happens to share a number.
 export interface CommentAnchor {
   lineStart: number;
   lineEnd?: number;
-  side: 'new' | 'old';
+  side: 'new' | 'old' | 'file';
 }
 
 // Line numbers for a selected idx range. Both ends are read off the same side of
@@ -118,6 +119,27 @@ export function lineRange(lines: FlatLine[], lo: number, hi: number): CommentAnc
   const lineStart = nos[0] ?? 0;
   const lineEnd = nos[nos.length - 1] ?? lineStart;
   return { lineStart, lineEnd: lineEnd === lineStart ? undefined : lineEnd, side: useNew ? 'new' : 'old' };
+}
+
+// File View shows the whole worktree file, so its lines are numbered from 1 with no
+// second numbering space to disambiguate — `lo`/`hi` are line indexes, not diff idxs.
+export function fileLineRange(lo: number, hi: number): CommentAnchor {
+  return { lineStart: lo + 1, lineEnd: hi === lo ? undefined : hi + 1, side: 'file' };
+}
+
+// The tree node for `path`, or null when the tree doesn't list that file. A file node
+// carries `changes` only when it differs in the current diff, which is what decides
+// between the diff view and File View.
+export function findFileNode(nodes: TreeNode[], path: string): TreeNode | null {
+  for (const n of nodes) {
+    if (n.type === 'file') {
+      if (n.path === path) return n;
+      continue;
+    }
+    const found = findFileNode(n.children, path);
+    if (found) return found;
+  }
+  return null;
 }
 
 export type SplitSide = { kind: DiffLine['kind']; no: number | null; text: string; idx: number; commentable?: boolean } | null;

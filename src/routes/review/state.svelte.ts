@@ -1,6 +1,6 @@
 import { toast } from '$lib/toast/state.svelte';
-import { fetchRemote, getFileDiff, getFileTree, listBranches, listRepos } from './api';
-import { firstFilePath, pruneToChanged } from './helpers';
+import { fetchRemote, getFileContent, getFileDiff, getFileTree, listBranches, listRepos } from './api';
+import { findFileNode, firstFilePath, pruneToChanged } from './helpers';
 import type { Branch, DiffHunk, DiffMode, DiffSpec, Repo, TreeNode } from './types';
 
 export type ViewMode = 'unified' | 'split';
@@ -15,12 +15,17 @@ class ReviewState {
 
   tree = $state<TreeNode[]>([]);
   selectedFile = $state<string | null>(null);
+  // Which view the selected file opens in: a changed file shows its diff, an unchanged
+  // one shows File View — its full worktree content (CONTEXT.md: File View).
+  selectedView = $state<'diff' | 'file' | null>(null);
   diffHunks = $state<DiffHunk[]>([]);
+  fileLines = $state<string[]>([]);
 
   loadingRepos = $state(false);
   loadingBranches = $state(false);
   loadingTree = $state(false);
   loadingDiff = $state(false);
+  loadingFile = $state(false);
   fetching = $state(false);
   lastFetched = $state<string | null>(null);
 
@@ -59,8 +64,7 @@ class ReviewState {
     this.branch = null;
     this.branches = [];
     this.tree = [];
-    this.selectedFile = null;
-    this.diffHunks = [];
+    this.#clearSelection();
     this.#treeSeq++;
     this.#diffSeq++;
 
@@ -95,14 +99,14 @@ class ReviewState {
     if (!spec) return;
     const seq = ++this.#treeSeq;
     this.#diffSeq++;
-    this.selectedFile = null;
-    this.diffHunks = [];
+    this.#clearSelection();
     this.loadingTree = true;
     try {
       const tree = await getFileTree(spec);
       if (seq !== this.#treeSeq) return;
       this.tree = tree;
-      // Only changed files are selectable — the rest of the tree has no diff to show.
+      // Opens on the first changed file — the reviewer came here for the diff, even
+      // when the sidebar is also listing unchanged files.
       const firstPath = firstFilePath(pruneToChanged(tree));
       if (firstPath) await this.selectFile(firstPath);
     } catch (e) {
@@ -115,10 +119,20 @@ class ReviewState {
 
   async selectFile(path: string) {
     const seq = ++this.#diffSeq;
-    this.selectedFile = path;
-    this.diffHunks = [];
     const spec = this.spec;
     if (!spec) return;
+    const node = findFileNode(this.tree, path);
+    // Only a changed file has a diff to show; anything else opens in File View.
+    const view = node?.type === 'file' && node.changes ? 'diff' : 'file';
+    this.selectedFile = path;
+    this.selectedView = view;
+    this.diffHunks = [];
+    this.fileLines = [];
+    if (view === 'diff') await this.#loadDiff(spec, path, seq);
+    else await this.#loadFileContent(spec.repoId, path, seq);
+  }
+
+  async #loadDiff(spec: DiffSpec, path: string, seq: number) {
     this.loadingDiff = true;
     try {
       const hunks = await getFileDiff(spec, path);
@@ -130,6 +144,27 @@ class ReviewState {
     } finally {
       if (seq === this.#diffSeq) this.loadingDiff = false;
     }
+  }
+
+  async #loadFileContent(repoId: string, path: string, seq: number) {
+    this.loadingFile = true;
+    try {
+      const content = await getFileContent(repoId, path);
+      if (seq !== this.#diffSeq) return;
+      this.fileLines = content.lines;
+    } catch (e) {
+      if (seq !== this.#diffSeq) return;
+      toast(`載入檔案內容失敗：${e}`, { variant: 'danger' });
+    } finally {
+      if (seq === this.#diffSeq) this.loadingFile = false;
+    }
+  }
+
+  #clearSelection() {
+    this.selectedFile = null;
+    this.selectedView = null;
+    this.diffHunks = [];
+    this.fileLines = [];
   }
 
   async fetchRemoteBranch() {
