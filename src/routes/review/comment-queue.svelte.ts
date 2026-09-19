@@ -48,8 +48,8 @@ class CommentQueue {
   }
 
   // Every line of `file` covered by a comment, keyed "<side>:<number>", for marking
-  // commented lines in the diff. Old and new line numbers are each unique within a
-  // file, so the side prefix is enough to tell the two numbering spaces apart.
+  // commented lines in the diff and in File View. Line numbers are unique within each
+  // numbering space, so the side prefix is enough to tell the spaces apart.
   //
   // A deleted line swept up in a selection that also touched the new side isn't
   // covered: the anchor counts in new line numbers, which that line has none of.

@@ -46,6 +46,10 @@ export interface DiffHunk {
   lines: DiffLine[];
 }
 
+export interface FileContent {
+  lines: string[];
+}
+
 export interface FetchResult {
   success: boolean;
   message: string;
