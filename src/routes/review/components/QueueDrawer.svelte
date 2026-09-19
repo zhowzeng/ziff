@@ -18,12 +18,13 @@
   /**
    * @typedef {Object} Props
    * @property {QueueItemData[]} items
+   * @property {string} [repoName]
    * @property {(id: string) => void} onRemove
    * @property {() => void} onClose
    */
 
   /** @type {Props} */
-  let { items, onRemove, onClose } = $props();
+  let { items, repoName, onRemove, onClose } = $props();
 
   /** @param {QueueItemData} item */
   function copyOne(item) {
@@ -54,7 +55,15 @@
 <div style="width:320px;min-width:320px;border-left:1px solid var(--border-default);background:var(--bg-subtle);display:flex;flex-direction:column">
   <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--border-default);background:var(--gray-0)">
     <Icon name="terminal" size={14} color="var(--text-secondary)" />
-    <span style="font-family:var(--font-sans);font-weight:600;font-size:var(--text-sm);color:var(--text-primary)">Comment Queue</span>
+    <span style="font-family:var(--font-sans);font-weight:600;font-size:var(--text-sm);color:var(--text-primary);flex-shrink:0">Comment Queue</span>
+    {#if repoName}
+      <!-- A queue belongs to one Repo (docs/decisions/0009). Naming it keeps the count
+           changing on a Repo switch from reading as comments gone missing. -->
+      <span
+        title={repoName}
+        style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+      >{repoName}</span>
+    {/if}
     <Badge variant="neutral">{items.length}</Badge>
     <div style="margin-left:auto">
       <IconButton icon="x" title="Close" size={24} onclick={onClose} />

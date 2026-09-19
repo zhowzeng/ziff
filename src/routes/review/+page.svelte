@@ -141,7 +141,9 @@
   // copy, so an edit here reaches the text that gets handed to the CLI agent, and
   // reopening a commented range edits that comment instead of starting a second one.
   let threadItem = $derived(
-    threadRange && reviewState.selectedFile ? commentQueue.find(reviewState.selectedFile, threadRange) : null,
+    threadRange && reviewState.selectedFile
+      ? commentQueue.find(reviewState.repoId, reviewState.selectedFile, threadRange)
+      : null,
   );
   let threadComments = $derived.by(() => {
     const item = threadItem;
@@ -156,7 +158,10 @@
     ];
   });
 
-  let commentedKeys = $derived(commentQueue.lineKeys(reviewState.selectedFile ?? ""));
+  // A queue belongs to one Repo (docs/decisions/0009), so everything read out of it
+  // here is scoped to the Repo being reviewed.
+  let queueItems = $derived(commentQueue.itemsFor(reviewState.repoId));
+  let commentedKeys = $derived(commentQueue.lineKeys(reviewState.repoId, reviewState.selectedFile ?? ""));
 
   function isCommented(line: DiffLineData) {
     return (
@@ -166,8 +171,13 @@
   }
 
   function addToQueue() {
-    if (!replyValue.trim() || !threadRange || !reviewState.selectedFile) return;
-    commentQueue.add({ file: reviewState.selectedFile, ...threadRange, text: replyValue.trim() });
+    if (!replyValue.trim() || !threadRange || !reviewState.selectedFile || !reviewState.repoId) return;
+    commentQueue.add({
+      repoId: reviewState.repoId,
+      file: reviewState.selectedFile,
+      ...threadRange,
+      text: replyValue.trim(),
+    });
     replyValue = "";
   }
 
@@ -455,11 +465,16 @@
     {/if}
 
     {#if commentQueue.open}
-      <QueueDrawer items={commentQueue.items} onRemove={(id) => commentQueue.remove(id)} onClose={() => (commentQueue.open = false)} />
+      <QueueDrawer
+        items={queueItems}
+        repoName={reviewState.repo?.name}
+        onRemove={(id) => commentQueue.remove(id)}
+        onClose={() => (commentQueue.open = false)}
+      />
     {/if}
   </div>
 
-  <QueueFab count={commentQueue.items.length} open={commentQueue.open} onclick={() => (commentQueue.open = !commentQueue.open)} />
+  <QueueFab count={queueItems.length} open={commentQueue.open} onclick={() => (commentQueue.open = !commentQueue.open)} />
   <SettingsModal open={settingsOpen} onClose={() => (settingsOpen = false)} {settings} onChange={(s) => (settings = s)} />
 </div>
 
