@@ -23,6 +23,15 @@ pub fn add_repo(app: tauri::AppHandle, path: String) -> Result<Repo, String> {
     Ok(repo)
 }
 
+/// Drops the Repo from the reviewer's list. This only edits Ziff's own list — the
+/// folder on disk is left alone.
+#[tauri::command]
+pub fn remove_repo(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let mut repos = store::load_repos(&app)?;
+    repos.retain(|r| r.id != id);
+    store::save_repos(&app, &repos)
+}
+
 fn read_repo(path: &str) -> Result<Repo, String> {
     let git = gix::open(path).map_err(|e| format!("Not a git repository: {path} ({e})"))?;
     let canonical = std::fs::canonicalize(path)

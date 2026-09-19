@@ -1,4 +1,5 @@
 import { toast } from '$lib/toast/state.svelte';
+import { commentQueue } from './comment-queue.svelte';
 import {
   addRepo as addRepoCommand,
   fetchRemote,
@@ -8,6 +9,7 @@ import {
   listBranches,
   listRepos,
   pickRepoFolder,
+  removeRepo as removeRepoCommand,
 } from './api';
 import { findFileNode, firstFilePath, pruneToChanged } from './helpers';
 import type { Branch, DiffHunk, DiffMode, DiffSpec, Repo, TreeNode } from './types';
@@ -87,6 +89,31 @@ class ReviewState {
     } catch (e) {
       toast(`新增 repo 失敗：${e}`, { variant: 'danger' });
     }
+  }
+
+  // Drops the Repo from Ziff — never the folder on disk. Its Comment Queue goes with
+  // it (docs/decisions/0009); the caller is the one that warns about unsent comments.
+  async removeRepo(id: string) {
+    try {
+      await removeRepoCommand(id);
+    } catch (e) {
+      toast(`移除 repo 失敗：${e}`, { variant: 'danger' });
+      return;
+    }
+    this.repos = this.repos.filter((r) => r.id !== id);
+    commentQueue.removeRepo(id);
+    if (this.repoId !== id) return;
+    // Nothing is selected any more, and a load still in flight for the removed Repo
+    // must not land on top of that.
+    this.#branchSeq++;
+    this.#treeSeq++;
+    this.#diffSeq++;
+    this.repoId = null;
+    this.branch = null;
+    this.branches = [];
+    this.baseBranch = null;
+    this.tree = [];
+    this.#clearSelection();
   }
 
   async selectRepo(id: string) {

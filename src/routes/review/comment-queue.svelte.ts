@@ -49,6 +49,12 @@ class CommentQueue {
     this.#items = this.#items.filter((i) => i.id !== id);
   }
 
+  // A queue belongs to its Repo, so removing the Repo takes its comments with it
+  // (docs/decisions/0009).
+  removeRepo(repoId: string) {
+    this.#items = this.#items.filter((i) => i.repoId !== repoId);
+  }
+
   update(id: string, text: string) {
     const item = this.#items.find((i) => i.id === id);
     if (item) item.text = text;
