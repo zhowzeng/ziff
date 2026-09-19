@@ -317,9 +317,11 @@
     <Icon name="chevron-right" size={12} color="var(--border-default)" />
     <!-- Not a picker: a comment's path:L12 is read against the worktree, so the branch
          under review is always the checked-out one (docs/decisions/0010). -->
-    <div class="topbar-branch" title="目前 checkout 的分支">
-      <Icon name="git-branch" size={13} color="var(--text-tertiary)" />
-      <span class="topbar-branch-name">{reviewState.branch ?? ""}</span>
+    <div class="topbar-branch" title={reviewState.detachedHead ? "HEAD 沒有指向任何分支" : "目前 checkout 的分支"}>
+      <Icon name={reviewState.detachedHead ? "git-commit-horizontal" : "git-branch"} size={13} color="var(--text-tertiary)" />
+      <span class="topbar-branch-name">
+        {reviewState.detachedHead ? `detached @ ${reviewState.detachedHead}` : (reviewState.branch ?? "")}
+      </span>
     </div>
     {#if reviewState.diffMode === "branch"}
       <!-- Only Branch mode compares against a Base Branch (CONTEXT.md: Diff Mode). -->
@@ -364,6 +366,13 @@
             hint={noRepos
               ? "從上方 Repo 選單的「Add repo…」加入本機 git repo。"
               : "從上方選擇 repo 與 branch 後，這裡會顯示變更的檔案。"}
+          />
+        {:else if reviewState.detachedHead}
+          <EmptyState
+            size="sm"
+            icon="git-commit-horizontal"
+            title="HEAD 沒有指向分支"
+            hint={`目前停在 ${reviewState.detachedHead}。Ziff review 的是已 checkout 的分支，先 checkout 一個分支再回來。`}
           />
         {:else if sidebarEmptyState === "no-diff"}
           <EmptyState size="sm" icon="git-compare" title="此分支沒有變更" hint="切換到有變更的分支，或勾選「顯示所有檔案」瀏覽整個專案。" />

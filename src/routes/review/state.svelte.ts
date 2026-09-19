@@ -21,6 +21,9 @@ class ReviewState {
   repoId = $state<string | null>(null);
   branches = $state<Branch[]>([]);
   branch = $state<string | null>(null);
+  // Set when HEAD is on no branch at all. The topbar is a read-only indicator of what's
+  // checked out (docs/decisions/0010), so it has to be able to say that.
+  detachedHead = $state<string | null>(null);
   // What a Branch-mode diff compares against (CONTEXT.md: Base Branch). Starts at the
   // Repo's default branch, and the reviewer can pick any other branch instead.
   baseBranch = $state<string | null>(null);
@@ -112,6 +115,7 @@ class ReviewState {
     this.repoId = null;
     this.branch = null;
     this.branches = [];
+    this.detachedHead = null;
     this.baseBranch = null;
     this.tree = [];
     this.#clearSelection();
@@ -121,6 +125,7 @@ class ReviewState {
     this.repoId = id;
     this.branch = null;
     this.branches = [];
+    this.detachedHead = null;
     this.tree = [];
     // Each Repo brings its own default branch, so the previous Repo's base branch
     // doesn't carry over.
@@ -132,10 +137,14 @@ class ReviewState {
     const seq = ++this.#branchSeq;
     this.loadingBranches = true;
     try {
-      const branches = await listBranches(id);
+      const { branches, detachedHead } = await listBranches(id);
       if (seq !== this.#branchSeq) return;
       this.branches = branches;
-      const current = branches.find((b) => b.isCurrent) ?? branches[0];
+      this.detachedHead = detachedHead;
+      // The branch under review is whichever one is checked out (docs/decisions/0010).
+      // A detached HEAD has none, and falling back to some other branch would label the
+      // topbar with a branch the reviewer isn't on — exactly what that ADR rules out.
+      const current = branches.find((b) => b.isCurrent);
       if (current) await this.#selectBranch(current.name);
     } catch (e) {
       if (seq !== this.#branchSeq) return;
@@ -264,8 +273,10 @@ class ReviewState {
     if (!id) return;
     const seq = ++this.#branchSeq;
     try {
-      const branches = await listBranches(id);
-      if (seq === this.#branchSeq) this.branches = branches;
+      const { branches, detachedHead } = await listBranches(id);
+      if (seq !== this.#branchSeq) return;
+      this.branches = branches;
+      this.detachedHead = detachedHead;
     } catch (e) {
       toast(`載入分支清單失敗：${e}`, { variant: 'danger' });
     }

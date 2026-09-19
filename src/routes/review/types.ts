@@ -12,8 +12,17 @@ export interface Repo {
 export interface Branch {
   name: string;
   isCurrent: boolean;
-  ahead: number;
-  behind: number;
+  /** Commits this branch has that its upstream doesn't, or null with no upstream. */
+  ahead: number | null;
+  behind: number | null;
+}
+
+/** What `list_branches` returns: the branches, plus what HEAD is doing when it's on
+ *  none of them. */
+export interface BranchList {
+  branches: Branch[];
+  /** Short commit id when HEAD is detached, null when it's on a branch. */
+  detachedHead: string | null;
 }
 
 export interface DiffSpec {
