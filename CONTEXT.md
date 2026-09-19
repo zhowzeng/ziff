@@ -13,15 +13,19 @@ Copying a single comment straight to the clipboard at the moment it's submitted,
 _Avoid_: Quick copy, instant copy, direct copy
 
 **Repo**:
-A local git repository (backed by a GitHub repo) the reviewer has added to Ziff. Selected alongside a Branch to produce the diff being reviewed.
+A local git repository (backed by a GitHub repo) the reviewer has added to Ziff. Selecting one sets what Ziff diffs, against whichever Branch that Repo has checked out.
 _Avoid_: Project, repository, workspace
 
+**Branch**:
+The branch a Repo currently has checked out — always the one under review, never one the reviewer picks.
+_Avoid_: Current branch, HEAD, source branch, selected branch
+
 **Diff Mode**:
-How the diff shown is computed: Unstaged (working tree vs index), Staged (index vs HEAD), or Branch (the selected Branch vs a Base Branch).
+How the diff shown is computed: Unstaged (working tree vs index), Staged (index vs HEAD), or Branch (the checked-out Branch vs a Base Branch).
 _Avoid_: Compare mode
 
 **Base Branch**:
-The branch a Branch-mode diff is compared against. Defaults to the Repo's default branch, but the reviewer can pick any branch instead.
+The branch a Branch-mode diff is compared against. Defaults to the Repo's default branch, but the reviewer can pick any other branch instead.
 _Avoid_: Target branch, main (not always main)
 
 **Comment**:
