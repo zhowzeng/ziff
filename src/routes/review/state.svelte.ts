@@ -1,3 +1,4 @@
+import { settings } from '$lib/settings/state.svelte';
 import { toast } from '$lib/toast/state.svelte';
 import { commentQueue } from './comment-queue.svelte';
 import {
@@ -27,7 +28,9 @@ class ReviewState {
   // What a Branch-mode diff compares against (CONTEXT.md: Base Branch). Starts at the
   // Repo's default branch, and the reviewer can pick any other branch instead.
   baseBranch = $state<string | null>(null);
-  diffMode = $state<DiffMode>('unstaged');
+  // Only the mode the app opens in: changing the setting later doesn't move the
+  // reviewer out of the mode they're in.
+  diffMode = $state<DiffMode>(settings.defaultDiffMode);
   view = $state<ViewMode>('unified');
 
   tree = $state<TreeNode[]>([]);

@@ -7,11 +7,12 @@
   import QueueFab from "./components/QueueFab.svelte";
   import Modal from "$lib/components/Modal.svelte";
   import Button from "$lib/components/Button.svelte";
-  import SettingsModal, { DEFAULT_SETTINGS } from "$lib/components/SettingsModal.svelte";
+  import SettingsModal from "$lib/components/SettingsModal.svelte";
   import { reviewState } from "./state.svelte";
   import { commentQueue } from "./comment-queue.svelte";
   import { selection } from "./selection.svelte";
   import { pruneToChanged } from "./helpers";
+  import { DIFF_FONT_SIZE_PX, settings, updateSettings } from "$lib/settings/state.svelte";
   import type { DiffMode, Repo } from "./types";
 
   onMount(() => {
@@ -20,7 +21,6 @@
 
   let settingsOpen = $state(false);
   let removeTarget = $state<Repo | null>(null);
-  let settings = $state({ ...DEFAULT_SETTINGS });
 
   let changedTree = $derived(pruneToChanged(reviewState.tree));
   // Nothing has been added on this machine yet, so the reviewer's next step is the
@@ -72,7 +72,7 @@
   }
 </script>
 
-<div class="app">
+<div class="app" style="--diff-font-size:{DIFF_FONT_SIZE_PX[settings.diffFontSize]}">
   <Topbar
     repos={reviewState.repos}
     repoId={reviewState.repoId}
@@ -134,7 +134,7 @@
   </div>
 
   <QueueFab count={queueItems.length} open={commentQueue.open} onclick={() => (commentQueue.open = !commentQueue.open)} />
-  <SettingsModal open={settingsOpen} onClose={() => (settingsOpen = false)} {settings} onChange={(s) => (settings = s)} />
+  <SettingsModal open={settingsOpen} onClose={() => (settingsOpen = false)} {settings} onChange={updateSettings} />
 
   <Modal open={removeTarget !== null} onClose={() => (removeTarget = null)} title="移除 repo？" width={400}>
     {#if removeTarget}

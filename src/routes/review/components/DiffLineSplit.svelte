@@ -30,7 +30,7 @@
   let kRight = $derived(kinds[right?.kind || 'context']);
 </script>
 
-<div style="display:flex;font-family:var(--font-mono);font-size:var(--text-sm);line-height:20px">
+<div style="display:flex;font-family:var(--font-mono);font-size:var(--diff-font-size);line-height:20px">
   <div
     role="presentation"
     onmouseenter={() => (leftHover = true)}

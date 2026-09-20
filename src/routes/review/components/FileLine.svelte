@@ -30,7 +30,7 @@
   onmouseleave={() => (hover = false)}
   style={`display:flex;background:${selected ? 'var(--accent-subtle)' : 'transparent'};
     border-left:3px solid ${selected ? 'var(--accent-emphasis)' : 'transparent'};
-    font-family:var(--font-mono);font-size:var(--text-sm);line-height:20px;position:relative`}
+    font-family:var(--font-mono);font-size:var(--diff-font-size);line-height:20px;position:relative`}
 >
   {#if (hover || selected) && onGutterDown}
     <button

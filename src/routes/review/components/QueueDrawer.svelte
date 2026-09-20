@@ -5,6 +5,7 @@
   import Badge from '$lib/components/Badge.svelte';
   import QueueItem from './QueueItem.svelte';
   import { formatForAgent } from '../helpers';
+  import { settings } from '$lib/settings/state.svelte';
 
   /**
    * @typedef {Object} QueueItemData
@@ -32,7 +33,10 @@
   }
 
   function copyAll() {
-    navigator.clipboard.writeText(items.map(formatForAgent).join('\n\n'));
+    // The prefix goes to the agent once, ahead of every comment in the queue.
+    const prefix = settings.usePrefixPrompt ? settings.prefixPrompt.trim() : '';
+    const comments = items.map(formatForAgent).join('\n\n');
+    navigator.clipboard.writeText(prefix ? `${prefix}\n\n${comments}` : comments);
   }
 
   const isMac = /Mac/.test(navigator.platform);
