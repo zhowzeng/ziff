@@ -36,8 +36,11 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned, matching the build workflow: a floating `stable` means a new clippy
+      # release can turn an unrelated PR red on a day nobody touched Rust.
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.92
           components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
