@@ -77,6 +77,17 @@
     return () => window.removeEventListener("mouseup", onUp);
   });
 
+  // Esc closes the open comment thread, the same way it closes a Modal — the x in its
+  // corner was the only way out of it.
+  $effect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape" || !selection.range) return;
+      selection.close();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   function gutterDown(i: number) {
     selection.startDrag(i);
   }
@@ -96,6 +107,31 @@
     for (const f of flatLines) groups[f.hunk].lines.push(f);
     return groups;
   });
+  // Which hunks are collapsed, kept against the diff they were collapsed in: loading
+  // another diff replaces `flatLines`, and everything is expanded again with no effect
+  // syncing the two. Raw state on purpose — the record is replaced whole on every
+  // change, and a reactive proxy would hand back a copy that fails the identity check.
+  const NONE_COLLAPSED: ReadonlySet<number> = new Set();
+  let collapsedIn = $state.raw<{ of: FlatLine[]; hunks: Set<number> }>({ of: [], hunks: new Set() });
+  let collapsedHunks = $derived(collapsedIn.of === flatLines ? collapsedIn.hunks : NONE_COLLAPSED);
+  let allCollapsed = $derived(diffHunks.length > 0 && collapsedHunks.size === diffHunks.length);
+
+  function setCollapsed(hunks: Set<number>) {
+    collapsedIn = { of: flatLines, hunks };
+    // A collapsed hunk takes its lines off screen, and the open thread is anchored to
+    // one of them.
+    const anchor = selection.range ? flatLines[selection.range.hi] : undefined;
+    if (anchor && hunks.has(anchor.hunk)) selection.close();
+  }
+  function toggleHunk(hunk: number) {
+    const hunks = new Set(collapsedHunks);
+    if (!hunks.delete(hunk)) hunks.add(hunk);
+    setCollapsed(hunks);
+  }
+  function toggleAllHunks() {
+    setCollapsed(allCollapsed ? new Set() : new Set(diffHunks.map((_, i) => i)));
+  }
+
   // File View's lines are indexed straight off the file, so its anchors come from the
   // line indexes themselves rather than from the diff's two numbering spaces.
   let threadRange = $derived.by(() => {
@@ -158,35 +194,33 @@
     toast("已複製這則評論", { variant: "success" });
   }
 
-  type Row = { kind: "header"; label: string } | { kind: "line"; idx: number; line: DiffLineData };
+  type Row =
+    | { kind: "header"; label: string; hunk: number }
+    | { kind: "line"; idx: number; line: DiffLineData };
   let rows = $derived.by<Row[]>(() => {
     const out: Row[] = [];
-    for (const g of hunkGroups) {
-      out.push({ kind: "header", label: g.header });
+    hunkGroups.forEach((g, hunk) => {
+      out.push({ kind: "header", label: g.header, hunk });
+      if (collapsedHunks.has(hunk)) return;
       for (const f of g.lines) out.push({ kind: "line", idx: f.idx, line: f.line });
-    }
+    });
     return out;
   });
 
   type SplitPair = ReturnType<typeof pairHunkLines>[number];
-  type SplitRow = { kind: "header"; label: string } | ({ kind: "row" } & SplitPair);
+  type SplitRow = { kind: "header"; label: string; hunk: number } | ({ kind: "row" } & SplitPair);
   let splitRows = $derived.by<SplitRow[]>(() => {
     const out: SplitRow[] = [];
-    for (const g of hunkGroups) {
-      out.push({ kind: "header", label: g.header });
+    hunkGroups.forEach((g, hunk) => {
+      out.push({ kind: "header", label: g.header, hunk });
+      if (collapsedHunks.has(hunk)) return;
       const numbered: IndexedLine[] = g.lines.map((f) => ({ ...f.line, idx: f.idx }));
       for (const pair of pairHunkLines(numbered)) {
         out.push({ kind: "row", ...pair });
       }
-    }
+    });
     return out;
   });
-
-  function splitRowThreadEndIdx(row: SplitPair) {
-    if (row.right) return row.right.idx;
-    if (row.left) return row.left.idx;
-    return null;
-  }
 
   // A del line paired with an add sits on the left of its row, so matching only the
   // right side would drop the thread when the reviewer switches to Split view.
@@ -241,7 +275,14 @@
 {:else}
   <main class="diff-panel">
     <div class="diff-panel-header">
-      <div class="file-header-wrap"><FileHeader path={selectedFile} renamedFrom={selectedRenamedFrom} /></div>
+      <div class="file-header-wrap">
+        <FileHeader
+          path={selectedFile}
+          renamedFrom={selectedRenamedFrom}
+          {allCollapsed}
+          onToggleHunks={isFileView ? null : toggleAllHunks}
+        />
+      </div>
       {#if !isFileView}
         <div class="view-toggle-wrap"><Segmented value={view} onChange={(v) => onViewChange(v as ViewMode)} options={VIEW_MODES} /></div>
       {/if}
@@ -287,7 +328,7 @@
     {:else if view === "unified"}
       {#each rows as row, i (i)}
         {#if row.kind === "header"}
-          <DiffHunk label={row.label} />
+          <DiffHunk label={row.label} collapsed={collapsedHunks.has(row.hunk)} onToggle={() => toggleHunk(row.hunk)} />
         {:else}
           <DiffLine
             kind={row.line.kind}
@@ -309,17 +350,17 @@
     {:else}
       {#each splitRows as row, i (i)}
         {#if row.kind === "header"}
-          <DiffHunk label={row.label} />
+          <DiffHunk label={row.label} collapsed={collapsedHunks.has(row.hunk)} onToggle={() => toggleHunk(row.hunk)} />
         {:else}
           <DiffLineSplit
             left={row.left}
             right={row.right}
             leftCommented={commentedKeys.has(`old:${row.left?.no}`)}
             rightCommented={commentedKeys.has(`new:${row.right?.no}`)}
-            onAddComment={() => {
-              const idx = splitRowThreadEndIdx(row);
-              if (idx !== null) selection.openAt(idx);
-            }}
+            leftSelected={row.left !== null && selection.includes(row.left.idx)}
+            rightSelected={row.right !== null && selection.includes(row.right.idx)}
+            onGutterDown={gutterDown}
+            onGutterEnter={gutterEnter}
           />
           {#if selection.range && splitRowHasIdx(row, selection.range.hi)}
             {@render commentBlock()}

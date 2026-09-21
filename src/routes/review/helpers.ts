@@ -74,6 +74,16 @@ export function formatForAgent(comment: {
   return `${comment.file}:${range}\n${comment.text}`;
 }
 
+// Every comment in the Comment Queue, as one block for the CLI agent. The prefix goes
+// to the agent once, ahead of every comment, rather than per comment.
+export function formatQueueForAgent(
+  items: { file: string; lineStart: number; lineEnd?: number; text: string }[],
+  prefix = ''
+) {
+  const comments = items.map(formatForAgent).join('\n\n');
+  return prefix ? `${prefix}\n\n${comments}` : comments;
+}
+
 // Comments now outlive the thread that created them, so they show the wall-clock time
 // they were written rather than a relative label that would silently go stale.
 export function formatTime(ts: number) {
@@ -144,9 +154,9 @@ export function findFileNode(nodes: TreeNode[], path: string): TreeNode | null {
 
 export type SplitSide = { kind: DiffLine['kind']; no: number | null; text: string; idx: number; commentable?: boolean } | null;
 
-// Only the right (new-side) column exposes the "add comment" affordance, matching
-// DiffLineSplit's single onAddComment callback — there's no per-side target to
-// route a left-side click to.
+// Only the right (new-side) column is commentable: a del line is gone from the
+// worktree, so `path:L12` for it would name a line the CLI agent reads as something
+// else (docs/decisions/0010). Unified view withholds the same affordance there.
 export function pairHunkLines(lines: IndexedLine[]): { left: SplitSide; right: SplitSide }[] {
   const result: { left: SplitSide; right: SplitSide }[] = [];
   let i = 0;
