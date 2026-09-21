@@ -21,7 +21,7 @@ The branch a Repo currently has checked out — always the one under review, nev
 _Avoid_: Current branch, HEAD, source branch, selected branch
 
 **Diff Mode**:
-How the diff shown is computed: Unstaged (working tree vs index), Staged (index vs HEAD), or Branch (the checked-out Branch vs a Base Branch).
+How the diff shown is computed: Unstaged (working tree vs index), Staged (index vs HEAD), or Branch (the working tree vs where the Branch and its Base Branch last met — everything done on the Branch, committed or not).
 _Avoid_: Compare mode
 
 **Base Branch**:
