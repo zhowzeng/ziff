@@ -154,11 +154,24 @@ fn fetch_within_timeout(root: PathBuf) -> FetchResult {
     }
 }
 
+/// Opens the Repo with someone to name in the reflog.
+///
+/// gix writes a reflog entry for every remote ref a fetch moves, and refuses to compose
+/// one without a committer identity -- stricter than `git fetch`, which needs none. So a
+/// reviewer who never ran `git config user.name` could not fetch at all. The fallback is
+/// only reached when git itself has nobody to name; a configured identity still wins.
+fn open_for_fetch(root: &Path) -> Result<gix::Repository, String> {
+    let mut git = gix::open(root).map_err(|e| format!("Cannot open {}: {e}", root.display()))?;
+    git.committer_or_set_generic_fallback()
+        .map_err(|e| explain("Cannot work out who to record the fetch as", &e))?;
+    Ok(git)
+}
+
 /// Fetches from the remote `git fetch` itself would pick: the checked-out branch's
 /// remote, or the only one configured. Returns what to tell the reviewer, whether it
 /// worked or not.
 fn fetch_from_remote(root: &Path, should_interrupt: &AtomicBool) -> Result<String, String> {
-    let git = gix::open(root).map_err(|e| format!("Cannot open {}: {e}", root.display()))?;
+    let git = open_for_fetch(root)?;
     // A Repo that was never cloned from anywhere has nothing to fetch. That is an
     // ordinary state for a local repo, not a failure.
     if git.remote_names().is_empty() {
@@ -385,6 +398,18 @@ mod tests {
             message,
             "This repo has no remote, so there is nothing to fetch."
         );
+    }
+
+    /// The gap that let a green local run push a red CI: a machine with no git identity
+    /// configured could not fetch at all, because the reflog entry had nobody to name.
+    /// Asserting on the prepared repo holds either way, identity configured or not.
+    #[test]
+    fn a_repo_opened_for_fetch_has_a_committer_for_the_reflog() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+
+        let git = super::open_for_fetch(dir.path()).expect("should open");
+        assert!(git.committer().is_some());
     }
 
     /// gix's own answer here names cargo features, which means nothing to a reviewer
