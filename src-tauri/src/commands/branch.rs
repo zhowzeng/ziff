@@ -2,6 +2,13 @@
 //! how far each branch has drifted from its upstream. `fetch_remote` lives here because
 //! refreshing the remote refs is what makes those ahead/behind counts current.
 
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
+use std::time::Duration;
+
+use gix::remote::fetch::refs::update;
+
 use super::paths::repo_root;
 use crate::types::{Branch, BranchList, FetchResult};
 
@@ -94,18 +101,151 @@ fn count_commits(git: &gix::Repository, tip: gix::ObjectId, hidden: gix::ObjectI
     Some(count)
 }
 
+/// How long a `Fetch` may run before Ziff gives up on it.
+///
+/// ADR 0003 accepted that fetching goes through the system `ssh` binary and git's
+/// credential helpers, neither of which Ziff controls -- either can sit waiting on a
+/// terminal prompt this app has no way to answer. A spinner that never stops is the
+/// worst answer to give a reviewer, so the fetch is abandoned instead.
+const FETCH_TIMEOUT: Duration = Duration::from_secs(60);
+
 #[tauri::command]
-pub fn fetch_remote(_repo_id: String) -> Result<FetchResult, String> {
-    Ok(FetchResult {
-        success: true,
-        message: "Already up to date.".into(),
-    })
+pub fn fetch_remote(app: tauri::AppHandle, repo_id: String) -> Result<FetchResult, String> {
+    let root = repo_root(&app, &repo_id)?;
+    Ok(fetch_within_timeout(root))
+}
+
+/// Runs the fetch on its own thread so a hung one can be abandoned.
+///
+/// The abandoned fetch keeps running until it next reads `should_interrupt` -- a thread
+/// blocked on a prompt cannot be killed -- but the reviewer gets an answer either way.
+fn fetch_within_timeout(root: PathBuf) -> FetchResult {
+    let should_interrupt = Arc::new(AtomicBool::new(false));
+    let (sender, receiver) = mpsc::channel();
+    let interrupt = Arc::clone(&should_interrupt);
+    std::thread::spawn(move || {
+        let _ = sender.send(fetch_from_remote(&root, &interrupt));
+    });
+
+    match receiver.recv_timeout(FETCH_TIMEOUT) {
+        Ok(Ok(message)) => FetchResult {
+            success: true,
+            message,
+        },
+        Ok(Err(message)) => FetchResult {
+            success: false,
+            message,
+        },
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            should_interrupt.store(true, Ordering::Relaxed);
+            FetchResult {
+                success: false,
+                message: format!(
+                    "Gave up after {}s. The remote may be unreachable, or it asked for \
+                     credentials Ziff cannot prompt for.",
+                    FETCH_TIMEOUT.as_secs()
+                ),
+            }
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => FetchResult {
+            success: false,
+            message: "Fetch stopped unexpectedly.".into(),
+        },
+    }
+}
+
+/// Fetches from the remote `git fetch` itself would pick: the checked-out branch's
+/// remote, or the only one configured. Returns what to tell the reviewer, whether it
+/// worked or not.
+// The credential callback's signature is gix's, and so is the oversized error type it
+// returns -- there is nothing to box here.
+#[allow(clippy::result_large_err)]
+fn fetch_from_remote(root: &Path, should_interrupt: &AtomicBool) -> Result<String, String> {
+    let git = gix::open(root).map_err(|e| format!("Cannot open {}: {e}", root.display()))?;
+    // A Repo that was never cloned from anywhere has nothing to fetch. That is an
+    // ordinary state for a local repo, not a failure.
+    if git.remote_names().is_empty() {
+        return Ok("This repo has no remote, so there is nothing to fetch.".into());
+    }
+    let remote = git
+        .find_fetch_remote(None)
+        .map_err(|e| explain("Cannot tell which remote to fetch from", &e))?;
+
+    let (url, _) = remote
+        .sanitized_url_and_version(gix::remote::Direction::Fetch)
+        .map_err(|e| explain("Cannot tell where to fetch from", &e))?;
+    let (mut cascade, _, mut prompt) = git
+        .config_snapshot()
+        .credential_helpers(url)
+        .map_err(|e| explain("Cannot read the credential configuration", &e))?;
+    // Ziff has nowhere to type a password, so the helper cascade has to fail rather than
+    // open a terminal prompt nobody will ever see. An askpass program, if one is
+    // configured, still gets its turn -- that one can put a window on screen.
+    prompt.mode = gix::prompt::Mode::Disable;
+
+    let outcome = remote
+        .connect(gix::remote::Direction::Fetch)
+        .map_err(|e| explain("Cannot reach the remote", &e))?
+        .with_credentials(move |action| cascade.invoke(action, prompt.clone()))
+        .prepare_fetch(gix::progress::Discard, Default::default())
+        .map_err(|e| explain("Cannot start the fetch", &e))?
+        .receive(gix::progress::Discard, should_interrupt)
+        .map_err(|e| explain("Fetch failed", &e))?;
+
+    Ok(summarize(&outcome.status))
+}
+
+/// A gix error together with its causes: the outermost message is usually the vaguest
+/// one ("Fetch failed"), and the reviewer needs the layer that names the real problem.
+fn explain(context: &str, error: &dyn std::error::Error) -> String {
+    let mut message = format!("{context}: {error}");
+    let mut cause = error.source();
+    while let Some(error) = cause {
+        message.push_str(&format!(": {error}"));
+        cause = error.source();
+    }
+    message
+}
+
+/// What changed, in the terms the reviewer cares about: which refs moved, and how.
+fn summarize(status: &gix::remote::fetch::Status) -> String {
+    let refs = match status {
+        gix::remote::fetch::Status::NoPackReceived { update_refs, .. }
+        | gix::remote::fetch::Status::Change { update_refs, .. } => update_refs,
+    };
+    let mut moved: Vec<String> = refs
+        .updates
+        .iter()
+        .filter(|update| !matches!(update.mode, update::Mode::NoChangeNeeded))
+        .filter_map(|update| {
+            let edit = refs.edits.get(update.edit_index?)?;
+            Some(format!("{} ({})", edit.name.shorten(), update.mode))
+        })
+        .collect();
+
+    if moved.is_empty() {
+        return "Already up to date.".into();
+    }
+    let total = moved.len();
+    // A toast is not a log: past a few refs the count says more than the names would.
+    moved.truncate(3);
+    if total > moved.len() {
+        format!("Updated {total} refs: {}, ...", moved.join(", "))
+    } else {
+        format!("Updated {}", moved.join(", "))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::read_branches;
+    use super::{fetch_from_remote, read_branches};
     use crate::test_repo::{git, open, repo_with_a_commit, DATE};
+    use std::sync::atomic::AtomicBool;
+
+    /// Fetches the way the command does, minus the timeout wrapper.
+    fn fetch(root: &std::path::Path) -> Result<String, String> {
+        fetch_from_remote(root, &AtomicBool::new(false))
+    }
 
     #[test]
     fn read_branches_marks_the_checked_out_branch_as_current() {
@@ -232,6 +372,69 @@ mod tests {
             &["commit", "-am", "remote work"],
         );
         git(&clone, "2020-02-01T00:00:00Z", &["fetch"]);
+
+        let list = read_branches(&open(&clone)).expect("should read");
+        assert_eq!(list.branches[0].behind, Some(1));
+    }
+
+    /// Pressing Fetch on a repo that was never cloned from anywhere is not a mistake,
+    /// so it must not come back as an error.
+    #[test]
+    fn fetch_reports_nothing_to_do_for_a_repo_without_a_remote() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+
+        let message = fetch(dir.path()).expect("should not fail");
+        assert_eq!(
+            message,
+            "This repo has no remote, so there is nothing to fetch."
+        );
+    }
+
+    #[test]
+    fn fetch_says_so_when_the_remote_has_not_moved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let clone = clone_with_upstream(dir.path());
+
+        let message = fetch(&clone).expect("should fetch");
+        assert_eq!(message, "Already up to date.");
+    }
+
+    #[test]
+    fn fetch_names_the_refs_it_moved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let clone = clone_with_upstream(dir.path());
+        let origin = dir.path().join("origin");
+        std::fs::write(origin.join("file.txt"), "remote\n").expect("write");
+        git(
+            &origin,
+            "2020-02-01T00:00:00Z",
+            &["commit", "-am", "remote work"],
+        );
+
+        let message = fetch(&clone).expect("should fetch");
+        assert_eq!(message, "Updated origin/main (fast-forward)");
+    }
+
+    /// Why Fetch exists at all: the counts the topbar shows are only as current as the
+    /// remote refs behind them.
+    #[test]
+    fn fetch_updates_the_counts_the_branch_list_reports() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let clone = clone_with_upstream(dir.path());
+        let origin = dir.path().join("origin");
+        std::fs::write(origin.join("file.txt"), "remote\n").expect("write");
+        git(
+            &origin,
+            "2020-02-01T00:00:00Z",
+            &["commit", "-am", "remote work"],
+        );
+        assert_eq!(
+            read_branches(&open(&clone)).expect("should read").branches[0].behind,
+            Some(0)
+        );
+
+        fetch(&clone).expect("should fetch");
 
         let list = read_branches(&open(&clone)).expect("should read");
         assert_eq!(list.branches[0].behind, Some(1));

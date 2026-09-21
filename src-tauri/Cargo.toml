@@ -23,7 +23,13 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-dialog = "2"
-gix = { version = "0.87", default-features = false, features = ["sha1", "status", "revision"] }
+gix = { version = "0.87", default-features = false, features = [
+    "sha1",
+    "status",
+    "revision",
+    "blocking-network-client",
+    "blocking-http-transport-reqwest-rust-tls",
+] }
 
 [dev-dependencies]
 tempfile = "3"
