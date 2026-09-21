@@ -80,4 +80,6 @@ jobs:
       # svelte-check, which is the only type checking this project has.
       - run: bun run check
 
+      - run: bun run test
+
       - run: bun run build
