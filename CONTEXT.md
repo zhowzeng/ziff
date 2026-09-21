@@ -21,7 +21,7 @@ The branch a Repo currently has checked out — always the one under review, nev
 _Avoid_: Current branch, HEAD, source branch, selected branch
 
 **Diff Mode**:
-How the diff shown is computed: Unstaged (working tree vs index), Staged (index vs HEAD), or Branch (the checked-out Branch vs a Base Branch).
+How the diff shown is computed: Unstaged (working tree vs index), Staged (index vs HEAD), or Branch (the working tree vs where the Branch and its Base Branch last met — everything done on the Branch, committed or not).
 _Avoid_: Compare mode
 
 **Base Branch**:
@@ -38,3 +38,15 @@ A git diff term (unchanged line shown for surrounding context) — general to di
 **File View**:
 Viewing a file's complete current (worktree) content, with no diff highlighting — separate from the diff view shown for changed files. A file with no changes opens here instead of the diff view. Comments can be left here too, anchored to the file's own (worktree) line numbers.
 _Avoid_: File browser, source view
+
+**Anchor Text**:
+The content of the lines a Comment covers, kept with the Comment as it was when the Comment was written. It is what decides whether the worktree still holds the code the Comment was about — the line numbers are only a pointer, the Anchor Text is what the Comment refers to.
+_Avoid_: Snapshot, quote, cached lines
+
+**Re-anchor**:
+Moving a Comment's line numbers to wherever its Anchor Text now sits in the file. The same Comment with a corrected pointer, not a new one.
+_Avoid_: Remap, relocate, rebind
+
+**Orphaned**:
+A Comment whose Anchor Text is nowhere in the file any more — the code it was written about is gone. The only state in which a Comment is handed to a CLI agent as something other than `path:L12`.
+_Avoid_: Stale, dangling, broken, 失效
