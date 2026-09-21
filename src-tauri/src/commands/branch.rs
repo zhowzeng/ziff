@@ -103,10 +103,10 @@ fn count_commits(git: &gix::Repository, tip: gix::ObjectId, hidden: gix::ObjectI
 
 /// How long a `Fetch` may run before Ziff gives up on it.
 ///
-/// ADR 0003 accepted that fetching goes through the system `ssh` binary and git's
-/// credential helpers, neither of which Ziff controls -- either can sit waiting on a
-/// terminal prompt this app has no way to answer. A spinner that never stops is the
-/// worst answer to give a reviewer, so the fetch is abandoned instead.
+/// ADR 0003 accepted that fetching goes through the system `ssh` binary, which Ziff does
+/// not control: it can sit waiting on a passphrase or a host-key prompt this app has no
+/// way to answer. A spinner that never stops is the worst answer to give a reviewer, so
+/// the fetch is abandoned instead.
 const FETCH_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[tauri::command]
@@ -157,9 +157,6 @@ fn fetch_within_timeout(root: PathBuf) -> FetchResult {
 /// Fetches from the remote `git fetch` itself would pick: the checked-out branch's
 /// remote, or the only one configured. Returns what to tell the reviewer, whether it
 /// worked or not.
-// The credential callback's signature is gix's, and so is the oversized error type it
-// returns -- there is nothing to box here.
-#[allow(clippy::result_large_err)]
 fn fetch_from_remote(root: &Path, should_interrupt: &AtomicBool) -> Result<String, String> {
     let git = gix::open(root).map_err(|e| format!("Cannot open {}: {e}", root.display()))?;
     // A Repo that was never cloned from anywhere has nothing to fetch. That is an
@@ -174,19 +171,18 @@ fn fetch_from_remote(root: &Path, should_interrupt: &AtomicBool) -> Result<Strin
     let (url, _) = remote
         .sanitized_url_and_version(gix::remote::Direction::Fetch)
         .map_err(|e| explain("Cannot tell where to fetch from", &e))?;
-    let (mut cascade, _, mut prompt) = git
-        .config_snapshot()
-        .credential_helpers(url)
-        .map_err(|e| explain("Cannot read the credential configuration", &e))?;
-    // Ziff has nowhere to type a password, so the helper cascade has to fail rather than
-    // open a terminal prompt nobody will ever see. An askpass program, if one is
-    // configured, still gets its turn -- that one can put a window on screen.
-    prompt.mode = gix::prompt::Mode::Disable;
+    // ADR 0011: Ziff is built without an HTTP transport, so say that in the reviewer's
+    // terms. gix's own answer names cargo features, which is no help from inside the app.
+    if matches!(url.scheme, gix::url::Scheme::Https | gix::url::Scheme::Http) {
+        return Err(format!(
+            "Ziff fetches over ssh only, and this repo's remote is {url}. Pointing it at \
+             the ssh form of the same repo (git remote set-url) makes Fetch work."
+        ));
+    }
 
     let outcome = remote
         .connect(gix::remote::Direction::Fetch)
         .map_err(|e| explain("Cannot reach the remote", &e))?
-        .with_credentials(move |action| cascade.invoke(action, prompt.clone()))
         .prepare_fetch(gix::progress::Discard, Default::default())
         .map_err(|e| explain("Cannot start the fetch", &e))?
         .receive(gix::progress::Discard, should_interrupt)
@@ -388,6 +384,30 @@ mod tests {
         assert_eq!(
             message,
             "This repo has no remote, so there is nothing to fetch."
+        );
+    }
+
+    /// gix's own answer here names cargo features, which means nothing to a reviewer
+    /// looking at a repo they cloned over HTTPS.
+    #[test]
+    fn fetch_explains_itself_when_the_remote_is_an_https_url() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(
+            dir.path(),
+            DATE,
+            &[
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/zhowzeng/ziff.git",
+            ],
+        );
+
+        let message = fetch(dir.path()).expect_err("should refuse");
+        assert!(
+            message.starts_with("Ziff fetches over ssh only,"),
+            "got: {message}"
         );
     }
 
