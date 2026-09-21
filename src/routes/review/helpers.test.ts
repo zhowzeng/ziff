@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   flattenHunks,
+  formatQueueForAgent,
   lineRange,
   pairHunkLines,
   pruneByName,
@@ -169,5 +170,28 @@ describe('pruneByName', () => {
   it('drops a dir whose name matches but whose files do not', () => {
     const tree = [dir('review', [file('a.ts')])];
     expect(pruneByName(tree, 'review')).toEqual([]);
+  });
+});
+
+describe('formatQueueForAgent', () => {
+  const items = [
+    { file: 'src/a.ts', lineStart: 3, text: 'rename this' },
+    { file: 'src/b.ts', lineStart: 10, lineEnd: 12, text: 'extract a helper' },
+  ];
+
+  it('joins every comment in the queue with a blank line between them', () => {
+    expect(formatQueueForAgent(items)).toBe(
+      'src/a.ts:L3\nrename this\n\nsrc/b.ts:L10-L12\nextract a helper'
+    );
+  });
+
+  it('puts the prefix in front once, not once per comment', () => {
+    expect(formatQueueForAgent(items, 'Apply these:')).toBe(
+      'Apply these:\n\nsrc/a.ts:L3\nrename this\n\nsrc/b.ts:L10-L12\nextract a helper'
+    );
+  });
+
+  it('leaves out the prefix when there is none', () => {
+    expect(formatQueueForAgent([items[0]], '')).toBe('src/a.ts:L3\nrename this');
   });
 });

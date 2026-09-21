@@ -5,7 +5,7 @@
   import Badge from '$lib/components/Badge.svelte';
   import QueueItem from './QueueItem.svelte';
   import { formatForAgent } from '../helpers';
-  import { settings } from '$lib/settings/state.svelte';
+  import { copyAllShortcut } from '../shortcuts';
 
   /**
    * @typedef {Object} QueueItemData
@@ -21,39 +21,17 @@
    * @property {QueueItemData[]} items
    * @property {string} [repoName]
    * @property {(id: string) => void} onRemove
+   * @property {() => void} onCopyAll
    * @property {() => void} onClose
    */
 
   /** @type {Props} */
-  let { items, repoName, onRemove, onClose } = $props();
+  let { items, repoName, onRemove, onCopyAll, onClose } = $props();
 
   /** @param {QueueItemData} item */
   function copyOne(item) {
     navigator.clipboard.writeText(formatForAgent(item));
   }
-
-  function copyAll() {
-    // The prefix goes to the agent once, ahead of every comment in the queue.
-    const prefix = settings.usePrefixPrompt ? settings.prefixPrompt.trim() : '';
-    const comments = items.map(formatForAgent).join('\n\n');
-    navigator.clipboard.writeText(prefix ? `${prefix}\n\n${comments}` : comments);
-  }
-
-  const isMac = /Mac/.test(navigator.platform);
-  const shortcutLabel = isMac ? '⌘⇧C' : 'Ctrl+Shift+C';
-
-  $effect(() => {
-    /** @param {KeyboardEvent} e */
-    function handler(e) {
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'c' && items.length > 0) {
-        e.preventDefault();
-        copyAll();
-      }
-    }
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  });
 </script>
 
 <div style="width:320px;min-width:320px;border-left:1px solid var(--border-default);background:var(--bg-subtle);display:flex;flex-direction:column">
@@ -88,9 +66,9 @@
 
   {#if items.length > 0}
     <div style="padding:10px;border-top:1px solid var(--border-default)">
-      <Button variant="primary" size="sm" onclick={copyAll} style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px">
+      <Button variant="primary" size="sm" onclick={onCopyAll} style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px">
         <span>Copy all for agent</span>
-        <span style="font-family:var(--font-mono);font-size:11px;opacity:0.75">{shortcutLabel}</span>
+        <span style="font-family:var(--font-mono);font-size:11px;opacity:0.75">{copyAllShortcut.label}</span>
       </Button>
     </div>
   {/if}

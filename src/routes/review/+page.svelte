@@ -11,7 +11,9 @@
   import { reviewState } from "./state.svelte";
   import { commentQueue } from "./comment-queue.svelte";
   import { selection } from "./selection.svelte";
-  import { pruneToChanged } from "./helpers";
+  import { formatQueueForAgent, pruneToChanged } from "./helpers";
+  import { copyAllShortcut } from "./shortcuts";
+  import { toast } from "$lib/toast/state.svelte";
   import { DIFF_FONT_SIZE_PX, settings, updateSettings } from "$lib/settings/state.svelte";
   import type { DiffMode, Repo } from "./types";
 
@@ -31,6 +33,33 @@
   // A queue belongs to one Repo (docs/decisions/0009), so everything read out of it
   // here is scoped to the Repo being reviewed.
   let queueItems = $derived(commentQueue.itemsFor(reviewState.repoId));
+
+  // The shortcut lives here rather than in the drawer, which is only rendered while it
+  // is open — the button printing this shortcut would otherwise promise keys that stop
+  // working the moment the drawer is closed.
+  $effect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Nothing to copy means nothing to swallow the keystroke for.
+      if (!copyAllShortcut.matches(e) || queueItems.length === 0) return;
+      e.preventDefault();
+      copyAllForAgent();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // Fired from the drawer's button and from the shortcut, which can run with the drawer
+  // closed — so the toast is the only feedback that anything happened.
+  async function copyAllForAgent() {
+    const prefix = settings.usePrefixPrompt ? settings.prefixPrompt.trim() : "";
+    try {
+      await navigator.clipboard.writeText(formatQueueForAgent(queueItems, prefix));
+    } catch (e) {
+      toast(`複製到剪貼簿失敗：${e}`, { variant: "danger" });
+      return;
+    }
+    toast(`已複製 ${queueItems.length} 則 comment`, { variant: "success" });
+  }
 
   // Anything that replaces the diff on screen drops the selection with it: the lines it
   // named are no longer the lines on screen.
@@ -128,6 +157,7 @@
         items={queueItems}
         repoName={reviewState.repo?.name}
         onRemove={(id) => commentQueue.remove(id)}
+        onCopyAll={copyAllForAgent}
         onClose={() => (commentQueue.open = false)}
       />
     {/if}
