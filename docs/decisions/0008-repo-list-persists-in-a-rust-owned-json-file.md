@@ -1,8 +1,6 @@
 # The Repo list persists in a Rust-owned JSON file, not in the frontend
 
-The reviewer's [[Repo]] list lives in `repos.json` under Tauri's app config directory, written and read by Rust (`src-tauri/src/store.rs`). ADR 0006 leaves the Comment Queue and Settings to the frontend, but it doesn't cover the Repo list, and the Repo list isn't like them: ADR 0005 makes Rust the authority on which directories may be read, and it can only check "does this path belong to a registered Repo" if it holds the registry itself. A list kept in the webview would have to be re-supplied to Rust on every call — which is the same as letting the frontend name any path it likes.
-
-A Repo is identified by its canonical filesystem path, so adding the same folder twice keeps one entry and no id has to be minted or kept unique across restarts.
+The reviewer's [[Repo]] list lives in `repos.json` under Tauri's app config directory, written and read by Rust (`src-tauri/src/store.rs`). ADR 0006 leaves the [[Comment Queue]] and Settings to the frontend but doesn't cover the Repo list, and the Repo list isn't like them: ADR 0005 makes Rust the authority on which directories may be read, and it can only check "does this path belong to a registered Repo" if it holds the registry itself — a list kept in the webview would have to be re-supplied to Rust on every call, which is the same as letting the frontend name any path it likes. A Repo is identified by its canonical filesystem path, so adding the same folder twice keeps one entry and no id has to be minted or kept unique across restarts.
 
 ## Considered Options
 
