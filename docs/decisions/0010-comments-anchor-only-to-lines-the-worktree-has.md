@@ -2,11 +2,11 @@
 
 A [[Comment]] is handed to a CLI agent as `path:L12` (ADR 0007), and the agent resolves that against the worktree. So Ziff only offers to anchor a comment where that number means the same thing on both sides. Two things follow.
 
-**The [[Branch]] under review is the checked-out one, not a pick.** Branch-mode's new side is the selected branch's tip, and Ziff never checks anything out (ADR 0003) — so a branch the reviewer isn't on produces line numbers their worktree doesn't have. The topbar's branch control becomes a read-only indicator of what's checked out, and the [[Base Branch]] picker is the only branch the reviewer chooses. `Unstaged` and `Staged` never depended on the choice anyway: they diff the working tree, index and HEAD of whatever is checked out.
+**The [[Branch]] under review is the checked-out one, not a pick.** Branch-mode's new side is the selected branch's own content, and Ziff never checks anything out (ADR 0003) — so a branch the reviewer isn't on produces line numbers their worktree doesn't have. The topbar's branch control becomes a read-only indicator of what's checked out, and the [[Base Branch]] picker is the only branch the reviewer chooses. `Unstaged` and `Staged` never depended on the choice anyway: they diff the working tree, index and HEAD of whatever is checked out.
 
 **A deleted line can't be commented on.** Its number belongs to the old side, which the worktree no longer has, so `path:L11` would name unrelated content. Unified view now withholds the add-comment affordance on a del line, matching what Split view already did, and `CommentAnchor` drops its `old` side.
 
-Two costs are accepted rather than solved. A worktree with uncommitted changes still sits slightly off its branch tip, so a Branch-mode line number can drift by the reviewer's own unstaged edits — a much smaller gap than reviewing a branch you aren't on, and one no line-number format closes. And `Staged` mode's new side is the index, not the worktree, so a file with unstaged changes on top has the same mismatch there; that is untouched here and still open.
+One cost is accepted rather than solved: `Staged` mode's new side is the index, not the worktree, so a file with unstaged changes on top has line numbers the worktree doesn't have. That is untouched here and still open. A second cost — Branch mode's new side being the branch tip, which a worktree with uncommitted changes sits slightly off — was accepted here and has since been closed by ADR 0012, which moved that new side to the worktree.
 
 ## Considered Options
 
