@@ -307,6 +307,49 @@ mod tests {
         );
     }
 
+    /// The same, for Branch mode: its numbers have to be the ones
+    /// `git diff $(git merge-base main HEAD)` prints, uncommitted edits included --
+    /// which `git diff main...feature` would not show (ADR 0012).
+    #[test]
+    fn branch_mode_hunks_match_git_diff_against_the_merge_base() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        let before: String = (1..=40).map(|i| format!("line {i}\n")).collect();
+        write(dir.path(), "big.txt", &before);
+        git(dir.path(), DATE, &["add", "."]);
+        git(dir.path(), DATE, &["commit", "-m", "big"]);
+
+        git(dir.path(), DATE, &["checkout", "-b", "feature"]);
+        // One edit committed on the branch, a second left in the worktree, far enough
+        // apart to stay separate hunks.
+        let committed: String = (1..=40)
+            .map(|i| match i {
+                2 => "EDITED 2\n".to_string(),
+                _ => format!("line {i}\n"),
+            })
+            .collect();
+        write(dir.path(), "big.txt", &committed);
+        git(dir.path(), DATE, &["add", "."]);
+        git(dir.path(), DATE, &["commit", "-m", "edit"]);
+        let worktree: String = (1..=40)
+            .map(|i| match i {
+                2 => "EDITED 2\n".to_string(),
+                20 => "EDITED 20\n".to_string(),
+                _ => format!("line {i}\n"),
+            })
+            .collect();
+        write(dir.path(), "big.txt", &worktree);
+
+        let mut spec = spec(DiffMode::Branch, Some("main"));
+        spec.branch = "feature".into();
+        let hunks = hunks_of(dir.path(), &spec, "big.txt");
+        let merge_base = git_stdout(dir.path(), DATE, &["merge-base", "main", "feature"]);
+        assert_eq!(
+            as_unified(&hunks),
+            git_diff_hunks(dir.path(), &[merge_base.trim(), "--", "big.txt"])
+        );
+    }
+
     #[test]
     fn a_new_file_is_one_hunk_starting_at_line_one() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -447,25 +490,5 @@ mod tests {
 
         let hunks = hunks_of(dir.path(), &spec(DiffMode::Staged, None), "moved.txt");
         assert_eq!(as_unified(&hunks), "@@ -2,7 +2,7 @@\n line 2\n line 3\n line 4\n-line 5\n+EDITED\n line 6\n line 7\n line 8\n");
-    }
-
-    /// Branch mode's sides are commits, not the worktree, but the hunks are built the
-    /// same way -- and `git diff <merge-base>..<tip>` is the same comparison.
-    #[test]
-    fn branch_mode_hunks_match_git_diff_against_the_merge_base() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        repo_with_a_commit(dir.path());
-        git(dir.path(), DATE, &["checkout", "-b", "feature"]);
-        write(dir.path(), "file.txt", "one\ntwo\nTHREE\nfour\n");
-        git(dir.path(), DATE, &["add", "."]);
-        git(dir.path(), DATE, &["commit", "-m", "edit"]);
-
-        let mut spec = spec(DiffMode::Branch, Some("main"));
-        spec.branch = "feature".into();
-        let hunks = hunks_of(dir.path(), &spec, "file.txt");
-        assert_eq!(
-            as_unified(&hunks),
-            git_diff_hunks(dir.path(), &["main...feature", "--", "file.txt"])
-        );
     }
 }

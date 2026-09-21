@@ -5,7 +5,7 @@ A [[Comment]] is handed to a CLI agent as `path:L12` (ADR 0007) and the agent re
 ## Consequences
 
 - `Unstaged` and `Staged` never depended on the branch choice anyway: they diff the working tree, index and HEAD of whatever is checked out.
-- A worktree with uncommitted changes still sits slightly off its branch tip, so a Branch-mode line number can drift by the reviewer's own unstaged edits. Accepted rather than solved — a much smaller gap than reviewing a branch you aren't on, and one no line-number format closes.
+- A worktree with uncommitted changes sat slightly off its branch tip, so a Branch-mode line number could drift by the reviewer's own unstaged edits. Accepted rather than solved here, and closed since by ADR 0012, which moved Branch mode's new side to the worktree.
 - `Staged` mode's new side is the index, not the worktree, so a file with unstaged changes on top has the same mismatch there. Untouched here and still open.
 
 ## Considered Options

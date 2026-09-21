@@ -1,7 +1,7 @@
 //! Which files differ between the two sides a Diff Mode names -- resolved out of the
-//! index, the worktree and the trees of two commits.
+//! index, the worktree and the tree of a commit.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{ChangedFile, Error, Side};
 use crate::types::{DiffMode, DiffSpec};
@@ -12,7 +12,7 @@ use crate::types::{DiffMode, DiffSpec};
 /// |------------|-----------------------------------|----------------|
 /// | `Unstaged` | index                             | worktree       |
 /// | `Staged`   | HEAD                              | index          |
-/// | `Branch`   | merge-base(Base Branch, branch)   | branch tip     |
+/// | `Branch`   | merge-base(Base Branch, branch)   | worktree       |
 pub fn changed_files(git: &gix::Repository, spec: &DiffSpec) -> Result<Vec<ChangedFile>, Error> {
     let mut files = match spec.diff_mode {
         DiffMode::Unstaged => unstaged(git)?,
@@ -20,7 +20,6 @@ pub fn changed_files(git: &gix::Repository, spec: &DiffSpec) -> Result<Vec<Chang
         DiffMode::Branch => branch(git, spec)?,
     };
     files.sort_by(|a, b| a.path.cmp(&b.path));
-    files.dedup_by(|a, b| a.path == b.path);
     Ok(files)
 }
 
@@ -38,30 +37,11 @@ pub fn tracked_paths(git: &gix::Repository, extra: &[String]) -> Result<Vec<Stri
     Ok(paths.into_keys().collect())
 }
 
-/// Whether a tree-to-tree change is about file content, rather than a directory or a
-/// submodule -- neither of which Ziff can show a diff for.
-fn is_file(change: &gix::object::tree::diff::ChangeDetached) -> bool {
-    use gix::object::tree::diff::ChangeDetached;
-    let mode = match change {
-        ChangeDetached::Addition { entry_mode, .. }
-        | ChangeDetached::Deletion { entry_mode, .. }
-        | ChangeDetached::Modification { entry_mode, .. } => entry_mode,
-        ChangeDetached::Rewrite { entry_mode, .. } => entry_mode,
-    };
-    mode.is_blob_or_symlink()
-}
-
 /// Rename detection, set explicitly rather than read from the reviewer's git config, so
 /// the same Repo produces the same tree on any machine. Copies are not tracked (gix's
 /// default), so a `Rewrite` is always a rename.
 fn rewrites() -> gix::diff::Rewrites {
     gix::diff::Rewrites::default()
-}
-
-fn tree_options() -> gix::diff::Options {
-    let mut options = gix::diff::Options::default();
-    options.track_rewrites(Some(rewrites()));
-    options
 }
 
 /// index vs worktree. Untracked files count as changes: a file the reviewer just wrote
@@ -201,72 +181,144 @@ fn staged(git: &gix::Repository) -> Result<Vec<ChangedFile>, Error> {
     Ok(out)
 }
 
-/// merge-base(Base Branch, branch) vs the branch tip -- the commits this branch added,
-/// without the ones the Base Branch has moved on to since.
+/// merge-base(Base Branch, branch) vs the worktree -- everything this branch did,
+/// committed or not (ADR 0012), without the commits the Base Branch made after the fork.
 fn branch(git: &gix::Repository, spec: &DiffSpec) -> Result<Vec<ChangedFile>, Error> {
+    let root = git
+        .workdir()
+        .ok_or("This repo has no working tree")?
+        .to_owned();
     let base_name = spec
         .base_branch
         .as_deref()
         .ok_or("Branch mode needs a Base Branch to compare against")?;
-    // ADR 0010: the branch under review is whichever one is checked out, so its tip is
-    // what the reviewer's worktree line numbers line up with.
+    // ADR 0010: the branch under review is whichever one is checked out, so the worktree
+    // is this branch's own new side.
     let tip = git
         .find_reference(spec.branch.as_str())?
         .into_fully_peeled_id()?;
     let base = git.find_reference(base_name)?.into_fully_peeled_id()?;
     let merge_base = git.merge_base(base, tip)?;
+    let merge_base_tree = git.find_commit(merge_base.detach())?.tree()?;
 
-    let old_tree = git.find_commit(merge_base.detach())?.tree()?;
-    let new_tree = git.find_commit(tip.detach())?.tree()?;
+    // One walk over merge-base tree -> index -> worktree, but it arrives as two kinds of
+    // event in no guaranteed order, and it never fuses them: a file changed in a commit
+    // *and* again in the worktree shows up twice. So the events are read for the paths
+    // that took part and nothing else -- each side's content is resolved below, from the
+    // merge-base tree and from the worktree, which is what makes a path land once.
+    let iter = git
+        .status(gix::progress::Discard)?
+        .head_tree(merge_base_tree.id)
+        .untracked_files(gix::status::UntrackedFiles::Files)
+        .index_worktree_rewrites(Some(rewrites()))
+        .tree_index_track_renames(gix::status::tree_index::TrackRenames::Given(rewrites()))
+        .into_iter(Vec::new())?;
+
+    let mut paths: BTreeSet<String> = BTreeSet::new();
+    // Where a path came from, for the leg that renamed it.
+    let mut sources: BTreeMap<String, String> = BTreeMap::new();
+    for item in iter {
+        match item? {
+            gix::status::Item::TreeIndex(change) => {
+                use gix::diff::index::ChangeRef;
+                match change {
+                    ChangeRef::Addition { location, .. }
+                    | ChangeRef::Deletion { location, .. }
+                    | ChangeRef::Modification { location, .. } => {
+                        paths.insert(location.to_string());
+                    }
+                    ChangeRef::Rewrite {
+                        source_location,
+                        location,
+                        ..
+                    } => {
+                        let path = location.to_string();
+                        sources.insert(path.clone(), source_location.to_string());
+                        paths.insert(path);
+                    }
+                }
+            }
+            gix::status::Item::IndexWorktree(item) => {
+                use gix::status::index_worktree::Item;
+                use gix::status::plumbing::index_as_worktree::EntryStatus;
+                match item {
+                    // Only the stat cache is stale -- the content is the index's, so
+                    // whether it differs from the merge-base is the tree leg's to say.
+                    Item::Modification {
+                        status: EntryStatus::NeedsUpdate(_),
+                        ..
+                    } => {}
+                    Item::Modification { rela_path, .. } => {
+                        paths.insert(rela_path.to_string());
+                    }
+                    Item::DirectoryContents { entry, .. } => {
+                        paths.insert(entry.rela_path.to_string());
+                    }
+                    Item::Rewrite {
+                        source,
+                        dirwalk_entry,
+                        ..
+                    } => {
+                        use gix::status::index_worktree::RewriteSource;
+                        // The other variant is only ever produced for copies, which
+                        // `rewrites()` does not track.
+                        let RewriteSource::RewriteFromIndex {
+                            source_rela_path, ..
+                        } = source
+                        else {
+                            continue;
+                        };
+                        let path = dirwalk_entry.rela_path.to_string();
+                        sources.insert(path.clone(), source_rela_path.to_string());
+                        paths.insert(path);
+                    }
+                }
+            }
+        }
+    }
 
     let mut out = Vec::new();
-    for change in git.diff_tree_to_tree(Some(&old_tree), Some(&new_tree), tree_options())? {
-        use gix::object::tree::diff::ChangeDetached;
-        // A tree-to-tree diff reports the directories along the way too. They have no
-        // content to diff, and left in they would show up as files named `src`,
-        // colliding with the directory of the same name.
-        if !is_file(&change) {
+    for path in paths {
+        let origin = origin_of(&path, &sources);
+        let old = match merge_base_tree.lookup_entry_by_path(&origin)? {
+            Some(entry) if entry.mode().is_blob_or_symlink() => Side::Blob(entry.object_id()),
+            _ => Side::Missing,
+        };
+        let full = root.join(&path);
+        // `symlink_metadata` rather than `exists`, so a symlink still counts as present
+        // when it points at nothing. A directory here is a submodule, which Ziff can no
+        // more show a diff for than the tree-to-tree walk could.
+        let new = match std::fs::symlink_metadata(&full) {
+            Ok(meta) if !meta.is_dir() => Side::Worktree(full),
+            _ => Side::Missing,
+        };
+        // Neither side has content: a file this branch added and the worktree has since
+        // removed, or a submodule, which has none either way.
+        if matches!((&old, &new), (Side::Missing, Side::Missing)) {
             continue;
         }
-        out.push(match change {
-            ChangeDetached::Addition { location, id, .. } => ChangedFile {
-                path: location.to_string(),
-                old_path: None,
-                old: Side::Missing,
-                new: Side::Blob(id),
-            },
-            ChangeDetached::Deletion { location, id, .. } => ChangedFile {
-                path: location.to_string(),
-                old_path: None,
-                old: Side::Blob(id),
-                new: Side::Missing,
-            },
-            ChangeDetached::Modification {
-                location,
-                previous_id,
-                id,
-                ..
-            } => ChangedFile {
-                path: location.to_string(),
-                old_path: None,
-                old: Side::Blob(previous_id),
-                new: Side::Blob(id),
-            },
-            ChangeDetached::Rewrite {
-                source_location,
-                source_id,
-                location,
-                id,
-                ..
-            } => ChangedFile {
-                path: location.to_string(),
-                old_path: Some(source_location.to_string()),
-                old: Side::Blob(source_id),
-                new: Side::Blob(id),
-            },
+        out.push(ChangedFile {
+            old_path: (origin != path).then(|| origin.clone()),
+            path,
+            old,
+            new,
         });
     }
     Ok(out)
+}
+
+/// The path a file had in the merge-base. A rename can be recorded on either leg -- one
+/// the branch committed, or one done in the worktree since -- so the sources are followed
+/// back. The bound is what keeps a rename that loops back on itself from spinning.
+fn origin_of(path: &str, sources: &BTreeMap<String, String>) -> String {
+    let mut origin = path;
+    for _ in 0..sources.len() {
+        match sources.get(origin) {
+            Some(source) => origin = source,
+            None => break,
+        }
+    }
+    origin.to_string()
 }
 
 #[cfg(test)]
@@ -375,7 +427,82 @@ mod tests {
         assert_eq!(found, ["mine.txt"]);
     }
 
-    /// A tree-to-tree diff reports the directories a change sits in as well. Left in,
+    /// ADR 0012: Branch mode's new side is the worktree, so work that is done but not
+    /// committed -- the part most likely to need a second look -- is in the diff.
+    #[test]
+    fn branch_lists_a_change_that_is_not_committed_yet() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["checkout", "-b", "feature"]);
+        write(dir.path(), "file.txt", "one\nCHANGED\nthree\n");
+
+        let mut spec = spec(DiffMode::Branch, Some("main"));
+        spec.branch = "feature".into();
+        let found = paths_of(&open(dir.path()), &spec);
+        assert_eq!(found, ["file.txt"]);
+    }
+
+    #[test]
+    fn branch_lists_a_file_that_was_never_added_to_the_index() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["checkout", "-b", "feature"]);
+        write(dir.path(), "brand-new.txt", "hello\n");
+
+        let mut spec = spec(DiffMode::Branch, Some("main"));
+        spec.branch = "feature".into();
+        let found = paths_of(&open(dir.path()), &spec);
+        assert_eq!(found, ["brand-new.txt"]);
+    }
+
+    /// The status walk reports merge-base-to-index and index-to-worktree as separate
+    /// events and never fuses them, so a file changed on both legs arrives twice. It has
+    /// to come out as one file spanning the whole distance -- merge-base to worktree --
+    /// rather than one of the two halves.
+    #[test]
+    fn branch_spans_a_file_changed_in_a_commit_and_again_in_the_worktree() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["checkout", "-b", "feature"]);
+        write(dir.path(), "file.txt", "one\nCOMMITTED\nthree\n");
+        git(dir.path(), DATE, &["add", "."]);
+        git(dir.path(), DATE, &["commit", "-m", "committed"]);
+        write(dir.path(), "file.txt", "one\nCOMMITTED\nWORKTREE\n");
+
+        let mut spec = spec(DiffMode::Branch, Some("main"));
+        spec.branch = "feature".into();
+        let git_repo = open(dir.path());
+        let files = changed_files(&git_repo, &spec).expect("ok");
+
+        assert_eq!(
+            files.iter().map(|file| &file.path).collect::<Vec<_>>(),
+            ["file.txt"]
+        );
+        let read =
+            |side: &Side| String::from_utf8(side.read(&git_repo).expect("read")).expect("utf-8");
+        assert_eq!(read(&files[0].old), "one\ntwo\nthree\n");
+        assert_eq!(read(&files[0].new), "one\nCOMMITTED\nWORKTREE\n");
+    }
+
+    /// A file this branch added and then removed again from the worktree is on neither
+    /// side of the comparison, so it is not a change to show.
+    #[test]
+    fn branch_leaves_out_a_file_it_added_and_the_worktree_has_since_deleted() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["checkout", "-b", "feature"]);
+        write(dir.path(), "scratch.txt", "throwaway\n");
+        git(dir.path(), DATE, &["add", "."]);
+        git(dir.path(), DATE, &["commit", "-m", "scratch"]);
+        std::fs::remove_file(dir.path().join("scratch.txt")).expect("remove");
+
+        let mut spec = spec(DiffMode::Branch, Some("main"));
+        spec.branch = "feature".into();
+        let found = paths_of(&open(dir.path()), &spec);
+        assert!(found.is_empty(), "got: {found:?}");
+    }
+
+    /// A tree-to-index diff reports the directories a change sits in as well. Left in,
     /// `src` would arrive as a file and collide with the directory of the same name.
     #[test]
     fn branch_leaves_out_the_directories_a_changed_file_sits_in() {
