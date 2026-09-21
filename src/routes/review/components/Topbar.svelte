@@ -3,6 +3,7 @@
   import Dropdown from "$lib/components/Dropdown.svelte";
   import FetchButton from "$lib/components/FetchButton.svelte";
   import { branchMeta } from "../helpers";
+  import { refreshShortcut } from "../shortcuts";
   import type { Branch, DiffMode, Repo } from "../types";
 
   interface Props {
@@ -15,11 +16,13 @@
     diffMode: DiffMode;
     fetching: boolean;
     lastFetched: string | null;
+    refreshing: boolean;
     onSelectRepo: (id: string) => void;
     onAddRepo: () => void;
     onRemoveRepo: (id: string) => void;
     onSetBaseBranch: (name: string) => void;
     onFetch: () => void;
+    onRefresh: () => void;
   }
   let {
     repos,
@@ -31,11 +34,13 @@
     diffMode,
     fetching,
     lastFetched,
+    refreshing,
     onSelectRepo,
     onAddRepo,
     onRemoveRepo,
     onSetBaseBranch,
     onFetch,
+    onRefresh,
   }: Props = $props();
 
   let repoOptions = $derived(repos.map((r) => ({ value: r.id, label: r.name, meta: r.path })));
@@ -86,6 +91,18 @@
     />
   {/if}
   <div class="topbar-spacer"></div>
+  <!-- The local half of the pair beside it: Refresh re-reads the worktree, Fetch goes
+       over ssh and may sit there for a minute (docs/decisions/0011). Different icon for
+       that reason — they are not two ways to do the same thing. -->
+  <button
+    class="topbar-refresh"
+    onclick={onRefresh}
+    disabled={!repoId || refreshing}
+    title={`重新讀取 diff（${refreshShortcut.label}）`}
+  >
+    <Icon name="rotate-cw" size={13} color="var(--text-tertiary)" class={refreshing ? "spin" : ""} />
+    Refresh
+  </button>
   <FetchButton {fetching} lastFetched={lastFetched ?? undefined} {onFetch} />
 </header>
 
@@ -141,6 +158,39 @@
   .topbar-spacer {
     flex: 1;
     min-width: 8px;
+  }
+
+  .topbar-refresh {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-default);
+    background: var(--gray-0);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .topbar-refresh:hover:not(:disabled) {
+    background: var(--bg-subtle);
+  }
+  .topbar-refresh:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .topbar-refresh :global(.spin) {
+    animation: spin 0.7s linear infinite;
   }
 
 </style>

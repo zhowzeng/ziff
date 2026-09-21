@@ -12,7 +12,7 @@
   import { commentQueue } from "./comment-queue.svelte";
   import { selection } from "./selection.svelte";
   import { formatQueueForAgent, pruneToChanged } from "./helpers";
-  import { copyAllShortcut } from "./shortcuts";
+  import { copyAllShortcut, refreshShortcut } from "./shortcuts";
   import { toast } from "$lib/toast/state.svelte";
   import { DIFF_FONT_SIZE_PX, settings, updateSettings } from "$lib/settings/state.svelte";
   import type { DiffMode, Repo } from "./types";
@@ -34,11 +34,16 @@
   // here is scoped to the Repo being reviewed.
   let queueItems = $derived(commentQueue.itemsFor(reviewState.repoId));
 
-  // The shortcut lives here rather than in the drawer, which is only rendered while it
-  // is open — the button printing this shortcut would otherwise promise keys that stop
-  // working the moment the drawer is closed.
+  // Both shortcuts live here rather than beside the buttons that print them: the drawer
+  // is only rendered while it is open, and Refresh has to swallow its keystroke whether
+  // or not there is a Repo to reload — see shortcuts.ts.
   $effect(() => {
     function onKey(e: KeyboardEvent) {
+      if (refreshShortcut.matches(e)) {
+        e.preventDefault();
+        refresh();
+        return;
+      }
       // Nothing to copy means nothing to swallow the keystroke for.
       if (!copyAllShortcut.matches(e) || queueItems.length === 0) return;
       e.preventDefault();
@@ -99,6 +104,12 @@
     selection.close();
     reviewState.selectFile(path);
   }
+  // Refresh keeps the reviewer on their file, but the diff under them is re-read, so an
+  // open selection still has to go — the lines it named are not the lines coming back.
+  function refresh() {
+    selection.close();
+    reviewState.refresh();
+  }
 </script>
 
 <div class="app" style="--diff-font-size:{DIFF_FONT_SIZE_PX[settings.diffFontSize]}">
@@ -117,6 +128,8 @@
     onRemoveRepo={requestRemoveRepo}
     onSetBaseBranch={setBaseBranch}
     onFetch={() => reviewState.fetchRemoteBranch()}
+    refreshing={reviewState.loadingTree}
+    onRefresh={refresh}
   />
 
   <div class="body">
