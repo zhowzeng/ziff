@@ -12,8 +12,15 @@ concurrency:
 
 jobs:
   rust:
-    name: Rust
-    runs-on: ubuntu-latest
+    name: Rust (${{ matrix.platform }})
+    # Both platforms Ziff is meant to run on. The Repo reads that differ between them --
+    # path canonicalization, and the system `ssh` a Fetch shells out to -- are exactly
+    # what a Linux-only run cannot speak for.
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
     defaults:
       run:
         working-directory: src-tauri
@@ -23,6 +30,7 @@ jobs:
       # The `tauri` crate links against these, so even `cargo test` needs them.
       # The list is the one from v2.tauri.app/start/prerequisites.
       - name: Install Tauri's Linux build dependencies
+        if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -47,9 +55,13 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # Neither answer differs by platform, and running them twice buys a second full
+      # compile and nothing else.
       - run: cargo fmt --check
+        if: matrix.platform == 'ubuntu-latest'
 
       - run: cargo clippy --all-targets -- -D warnings
+        if: matrix.platform == 'ubuntu-latest'
 
       # The git CLI builds the fixtures these tests run against; it is already on the
       # runner image.
