@@ -11,7 +11,8 @@
   import { reviewState } from "./state.svelte";
   import { commentQueue } from "./comment-queue.svelte";
   import { selection } from "./selection.svelte";
-  import { formatQueueForAgent, pruneToChanged } from "./helpers";
+  import { resolveAgainstWorktree } from "./handoff";
+  import { formatForAgent, formatQueueForAgent, pruneToChanged } from "./helpers";
   import { copyAllShortcut, refreshShortcut } from "./shortcuts";
   import { toast } from "$lib/toast/state.svelte";
   import { DIFF_FONT_SIZE_PX, settings, updateSettings } from "$lib/settings/state.svelte";
@@ -55,15 +56,38 @@
 
   // Fired from the drawer's button and from the shortcut, which can run with the drawer
   // closed — so the toast is the only feedback that anything happened.
+  //
+  // Every comment is checked against the worktree on the way out (docs/decisions/0013):
+  // the files may have been edited since the comments were written, and this is the
+  // moment the line numbers are promised to mean something.
   async function copyAllForAgent() {
+    const repoId = reviewState.repoId;
+    if (!repoId) return;
     const prefix = settings.usePrefixPrompt ? settings.prefixPrompt.trim() : "";
+    const comments = await resolveAgainstWorktree(repoId, queueItems);
     try {
-      await navigator.clipboard.writeText(formatQueueForAgent(queueItems, prefix));
+      await navigator.clipboard.writeText(formatQueueForAgent(comments, prefix));
     } catch (e) {
       toast(`複製到剪貼簿失敗：${e}`, { variant: "danger" });
       return;
     }
-    toast(`已複製 ${queueItems.length} 則 comment`, { variant: "success" });
+    toast(`已複製 ${comments.length} 則 comment`, { variant: "success" });
+  }
+
+  // The drawer's per-comment copy is a hand-off too, so it runs the same check. It
+  // lives here rather than in the drawer because that check needs the Repo.
+  async function copyOneForAgent(id: string) {
+    const repoId = reviewState.repoId;
+    const item = queueItems.find((i) => i.id === id);
+    if (!repoId || !item) return;
+    const [comment] = await resolveAgainstWorktree(repoId, [item]);
+    try {
+      await navigator.clipboard.writeText(formatForAgent(comment));
+    } catch (e) {
+      toast(`複製到剪貼簿失敗：${e}`, { variant: "danger" });
+      return;
+    }
+    toast("已複製這則評論", { variant: "success" });
   }
 
   // Anything that replaces the diff on screen drops the selection with it: the lines it
@@ -106,9 +130,14 @@
   }
   // Refresh keeps the reviewer on their file, but the diff under them is re-read, so an
   // open selection still has to go — the lines it named are not the lines coming back.
-  function refresh() {
+  //
+  // The queue is re-checked against the re-read files as well: a comment whose lines
+  // moved would otherwise keep marking the lines it used to be on (docs/decisions/0013).
+  async function refresh() {
     selection.close();
-    reviewState.refresh();
+    await reviewState.refresh();
+    const repoId = reviewState.repoId;
+    if (repoId) await resolveAgainstWorktree(repoId, commentQueue.itemsFor(repoId));
   }
 </script>
 
@@ -154,6 +183,7 @@
       selectedView={reviewState.selectedView}
       view={reviewState.view}
       onViewChange={(v) => (reviewState.view = v)}
+      diffMode={reviewState.diffMode}
       diffHunks={reviewState.diffHunks}
       diffBinary={reviewState.diffBinary}
       loadingDiff={reviewState.loadingDiff}
@@ -170,6 +200,7 @@
         items={queueItems}
         repoName={reviewState.repo?.name}
         onRemove={(id) => commentQueue.remove(id)}
+        onCopyOne={copyOneForAgent}
         onCopyAll={copyAllForAgent}
         onClose={() => (commentQueue.open = false)}
       />
