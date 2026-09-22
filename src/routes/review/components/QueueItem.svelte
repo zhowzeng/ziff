@@ -15,7 +15,7 @@
     <span style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{item.file}</span>
     <span style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--text-tertiary)">{range}</span>
     <div style="margin-left:auto;display:flex;gap:2px">
-      <IconButton icon="copy" title="Copy" size={20} onclick={() => onCopy(item)} />
+      <IconButton icon="copy" title="Copy" size={20} onclick={() => onCopy(item.id)} />
       <IconButton icon="x" title="Remove" size={20} onclick={() => onRemove(item.id)} />
     </div>
   </div>

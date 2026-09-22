@@ -4,7 +4,6 @@
   import Button from '$lib/components/Button.svelte';
   import Badge from '$lib/components/Badge.svelte';
   import QueueItem from './QueueItem.svelte';
-  import { formatForAgent } from '../helpers';
   import { copyAllShortcut } from '../shortcuts';
 
   /**
@@ -21,17 +20,13 @@
    * @property {QueueItemData[]} items
    * @property {string} [repoName]
    * @property {(id: string) => void} onRemove
+   * @property {(id: string) => void} onCopyOne
    * @property {() => void} onCopyAll
    * @property {() => void} onClose
    */
 
   /** @type {Props} */
-  let { items, repoName, onRemove, onCopyAll, onClose } = $props();
-
-  /** @param {QueueItemData} item */
-  function copyOne(item) {
-    navigator.clipboard.writeText(formatForAgent(item));
-  }
+  let { items, repoName, onRemove, onCopyOne, onCopyAll, onClose } = $props();
 </script>
 
 <div style="width:320px;min-width:320px;border-left:1px solid var(--border-default);background:var(--bg-subtle);display:flex;flex-direction:column">
@@ -59,7 +54,7 @@
       </div>
     {:else}
       {#each items as item (item.id)}
-        <QueueItem {item} {onRemove} onCopy={copyOne} />
+        <QueueItem {item} {onRemove} onCopy={onCopyOne} />
       {/each}
     {/if}
   </div>
