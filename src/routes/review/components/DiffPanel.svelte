@@ -22,7 +22,7 @@
     type IndexedLine,
   } from "../helpers";
   import type { ViewMode } from "../state.svelte";
-  import type { DiffHunk as DiffHunkData, DiffLine as DiffLineData } from "../types";
+  import type { DiffHunk as DiffHunkData, DiffLine as DiffLineData, DiffMode } from "../types";
 
   const VIEW_MODES = [
     { value: "unified", label: "Unified" },
@@ -38,6 +38,9 @@
     selectedView: "diff" | "file" | null;
     view: ViewMode;
     onViewChange: (view: ViewMode) => void;
+    /** Which Diff Mode a comment written here is being written against — kept with the
+     *  comment, for the hand-off to say so when the worktree has moved since. */
+    diffMode: DiffMode;
     diffHunks: DiffHunkData[];
     diffBinary: boolean;
     loadingDiff: boolean;
@@ -56,6 +59,7 @@
     selectedView,
     view,
     onViewChange,
+    diffMode,
     diffHunks,
     diffBinary,
     loadingDiff,
@@ -141,6 +145,22 @@
     return lineRange(flatLines, range.lo, range.hi);
   });
 
+  // The Anchor Text a comment written here would carry (docs/decisions/0013): the
+  // selected lines as they are on screen right now, which is what the reviewer is
+  // commenting on. Both views already have them — nothing is re-read to build it.
+  //
+  // Only new-side lines count in the diff, the same ones threadRange numbers: a del
+  // line swept up in the selection is not in the file the CLI agent will read.
+  let threadAnchorText = $derived.by(() => {
+    const range = selection.range;
+    if (!range) return [];
+    if (isFileView) return fileLines.slice(range.lo, range.hi + 1);
+    return flatLines
+      .slice(range.lo, range.hi + 1)
+      .filter((f) => f.line.newNo !== null)
+      .map((f) => f.line.content);
+  });
+
   // The thread renders straight out of the Comment Queue rather than keeping its own
   // copy, so an edit here reaches the text that gets handed to the CLI agent, and
   // reopening a commented range edits that comment instead of starting a second one.
@@ -175,6 +195,8 @@
       file: selectedFile,
       ...threadRange,
       text: selection.draft.trim(),
+      anchorText: threadAnchorText,
+      diffMode,
     });
     selection.draft = "";
   }

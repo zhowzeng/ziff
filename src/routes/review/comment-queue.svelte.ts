@@ -5,7 +5,9 @@
 // back out of here rather than keeping its own copy, so an edit in the thread and the
 // text handed to the CLI agent can't drift apart.
 
+import type { AnchorResolution } from './anchor';
 import type { CommentAnchor } from './helpers';
+import type { DiffMode } from './types';
 
 export interface QueueItem extends CommentAnchor {
   id: string;
@@ -13,6 +15,17 @@ export interface QueueItem extends CommentAnchor {
   file: string;
   text: string;
   createdAt: number;
+  // The lines this comment was written against, as the reviewer saw them on screen
+  // rather than a later re-read of the worktree (docs/decisions/0013). It is what
+  // decides whether the line numbers above still point at the code the comment is
+  // about.
+  anchorText: string[];
+  // The Diff Mode it was written in: a comment written against the index has its own
+  // reason string when the worktree has since moved out from under it.
+  diffMode: DiffMode;
+  // Set by the worktree check: the Anchor Text is nowhere in the file any more, so
+  // these line numbers are only a record of where the comment was written.
+  orphaned: boolean;
 }
 
 function sameAnchor(a: CommentAnchor, b: CommentAnchor) {
@@ -40,8 +53,8 @@ class CommentQueue {
     return this.#items.filter((i) => i.repoId === repoId);
   }
 
-  add(item: Omit<QueueItem, 'id' | 'createdAt'>) {
-    this.#items.push({ id: crypto.randomUUID(), createdAt: Date.now(), ...item });
+  add(item: Omit<QueueItem, 'id' | 'createdAt' | 'orphaned'>) {
+    this.#items.push({ id: crypto.randomUUID(), createdAt: Date.now(), orphaned: false, ...item });
     this.open = true;
   }
 
@@ -53,6 +66,21 @@ class CommentQueue {
   // (docs/decisions/0009).
   removeRepo(repoId: string) {
     this.#items = this.#items.filter((i) => i.repoId !== repoId);
+  }
+
+  // What the worktree check found (handoff.ts): line numbers moved to wherever the
+  // Anchor Text now sits, or the comment marked Orphaned. Re-anchoring here is what
+  // makes find() and lineKeys() land on the right lines afterwards.
+  applyResolution(id: string, resolution: AnchorResolution) {
+    const item = this.#items.find((i) => i.id === id);
+    if (!item) return;
+    if (resolution.kind === 'orphaned') {
+      item.orphaned = true;
+      return;
+    }
+    item.orphaned = false;
+    item.lineStart = resolution.lineStart;
+    item.lineEnd = resolution.lineEnd;
   }
 
   update(id: string, text: string) {
@@ -77,11 +105,14 @@ class CommentQueue {
   //
   // A deleted line swept up in a selection that also touched the new side isn't
   // covered: the anchor counts in new line numbers, which that line has none of.
+  //
+  // Neither is an Orphaned comment: the code it was written about is gone from the
+  // file, so marking the lines it used to be on would point at something else.
   lineKeys(repoId: string | null, file: string): Set<string> {
     const keys = new Set<string>();
     if (!repoId) return keys;
     for (const item of this.#items) {
-      if (item.repoId !== repoId || item.file !== file) continue;
+      if (item.repoId !== repoId || item.file !== file || item.orphaned) continue;
       for (let n = item.lineStart; n <= (item.lineEnd ?? item.lineStart); n++) {
         keys.add(`${item.side}:${n}`);
       }

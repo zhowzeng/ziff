@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   fileAfterReload,
   flattenHunks,
+  formatForAgent,
   formatQueueForAgent,
   lineRange,
   pairHunkLines,
@@ -221,5 +222,41 @@ describe('formatQueueForAgent', () => {
 
   it('leaves out the prefix when there is none', () => {
     expect(formatQueueForAgent([items[0]], '')).toBe('src/a.ts:L3\nrename this');
+  });
+});
+
+describe('formatForAgent', () => {
+  const orphaned = {
+    file: 'src/foo.rs',
+    lineStart: 12,
+    text: '這裡應該用 open_workbook_auto',
+    orphaned: { anchorText: ['let x = foo()?;'], staged: false },
+  };
+
+  it('quotes the lines instead of a line number once they are gone', () => {
+    expect(formatForAgent(orphaned)).toBe(
+      'src/foo.rs (commented at L12; that code is no longer in the file)\n' +
+        '> let x = foo()?;\n這裡應該用 open_workbook_auto'
+    );
+  });
+
+  it('says the working tree moved when the comment was written against the index', () => {
+    expect(formatForAgent({ ...orphaned, orphaned: { ...orphaned.orphaned, staged: true } })).toBe(
+      'src/foo.rs (commented at L12 as staged; the working tree has since changed)\n' +
+        '> let x = foo()?;\n這裡應該用 open_workbook_auto'
+    );
+  });
+
+  it('prefixes every quoted line, so a multi-line comment stays apart from the code', () => {
+    const text = formatForAgent({
+      ...orphaned,
+      lineEnd: 13,
+      text: 'first line\nsecond line',
+      orphaned: { anchorText: ['let x = foo()?;', 'let y = bar()?;'], staged: false },
+    });
+    expect(text).toBe(
+      'src/foo.rs (commented at L12-L13; that code is no longer in the file)\n' +
+        '> let x = foo()?;\n> let y = bar()?;\nfirst line\nsecond line'
+    );
   });
 });
