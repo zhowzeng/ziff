@@ -62,6 +62,23 @@ class CommentQueue {
     this.#items = this.#items.filter((i) => i.id !== id);
   }
 
+  // Copying the queue for a CLI agent is the hand-off, and a comment that has been
+  // handed off has done its job (docs/decisions/0014) — so the copy takes the comments
+  // with it. Only the asking Repo's, like every other reader here (docs/decisions/0009).
+  //
+  // What it removed is returned for restore(), which is the toast's undo.
+  takeFor(repoId: string): QueueItem[] {
+    const taken = this.itemsFor(repoId);
+    this.#items = this.#items.filter((i) => i.repoId !== repoId);
+    return taken;
+  }
+
+  // Undoing a hand-off puts back the same comments, ids and all, so anything holding on
+  // to one of them — an open comment thread — still finds it.
+  restore(items: QueueItem[]) {
+    this.#items.push(...items);
+  }
+
   // A queue belongs to its Repo, so removing the Repo takes its comments with it
   // (docs/decisions/0009).
   removeRepo(repoId: string) {

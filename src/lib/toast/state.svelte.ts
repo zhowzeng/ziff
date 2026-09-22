@@ -1,9 +1,17 @@
 export type ToastVariant = 'default' | 'success' | 'danger' | 'warning';
 
+// A single button in the toast, for an action only worth offering while the toast that
+// reports what happened is still on screen — undoing it (docs/decisions/0014).
+export type ToastAction = {
+  label: string;
+  onclick: () => void;
+};
+
 export type ToastItem = {
   id: number;
   message: string;
   variant: ToastVariant;
+  action?: ToastAction;
 };
 
 let toasts = $state<ToastItem[]>([]);
@@ -15,10 +23,14 @@ export function getToasts() {
 
 export function toast(
   message: string,
-  { variant = 'default', duration = 4000 }: { variant?: ToastVariant; duration?: number } = {}
+  {
+    variant = 'default',
+    duration = 4000,
+    action,
+  }: { variant?: ToastVariant; duration?: number; action?: ToastAction } = {}
 ) {
   const id = nextId++;
-  toasts.push({ id, message, variant });
+  toasts.push({ id, message, variant, action });
   if (duration > 0) {
     setTimeout(() => dismiss(id), duration);
   }
