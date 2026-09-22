@@ -12,7 +12,7 @@ import {
   pickRepoFolder,
   removeRepo as removeRepoCommand,
 } from './api';
-import { findFileNode, firstFilePath, pruneToChanged } from './helpers';
+import { fileAfterReload, findFileNode } from './helpers';
 import type { Branch, DiffHunk, DiffMode, DiffSpec, Repo, TreeNode } from './types';
 
 export type ViewMode = 'unified' | 'split';
@@ -185,21 +185,31 @@ class ReviewState {
     await this.reloadTree();
   }
 
-  async reloadTree() {
+  // The one action the agent workflow needs and the diff never had: re-read the tree
+  // and the open diff straight off disk, with no ssh round-trip (docs/decisions/0011)
+  // and no bouncing the reviewer off the file they were reading.
+  async refresh() {
+    await this.reloadTree({ keepSelection: true });
+  }
+
+  async reloadTree({ keepSelection = false } = {}) {
     const spec = this.spec;
     if (!spec) return;
     const seq = ++this.#treeSeq;
     this.#diffSeq++;
-    this.#clearSelection();
+    // Refresh keeps showing the file it is reloading, so its selection can only be
+    // dropped once the new tree says whether that file is still there. Switching Repo,
+    // Diff Mode or Base Branch shows something else entirely, so theirs goes now.
+    const previous = keepSelection ? this.selectedFile : null;
+    if (!keepSelection) this.#clearSelection();
     this.loadingTree = true;
     try {
       const tree = await getFileTree(spec);
       if (seq !== this.#treeSeq) return;
       this.tree = tree;
-      // Opens on the first changed file — the reviewer came here for the diff, even
-      // when the sidebar is also listing unchanged files.
-      const firstPath = firstFilePath(pruneToChanged(tree));
-      if (firstPath) await this.selectFile(firstPath);
+      const path = fileAfterReload(tree, previous);
+      if (path) await this.selectFile(path);
+      else this.#clearSelection();
     } catch (e) {
       if (seq !== this.#treeSeq) return;
       toast(`載入變更檔案清單失敗：${e}`, { variant: 'danger' });

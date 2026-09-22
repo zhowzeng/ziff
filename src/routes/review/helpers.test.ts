@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  fileAfterReload,
   flattenHunks,
   formatQueueForAgent,
   lineRange,
@@ -158,6 +159,33 @@ describe('pruneToChanged', () => {
     const tree = [dir('src', [file('a.ts', { add: 1, del: 0 }), file('b.ts')])];
     pruneToChanged(tree);
     expect(tree[0].type === 'dir' && tree[0].children).toHaveLength(2);
+  });
+});
+
+describe('fileAfterReload', () => {
+  const tree = [
+    dir('src', [file('a.ts', { add: 1, del: 0 }), file('b.ts', { add: 2, del: 0 })]),
+    file('README.md'),
+  ];
+
+  it('keeps the reviewer on the file they were reading', () => {
+    expect(fileAfterReload(tree, 'b.ts')).toBe('b.ts');
+  });
+
+  it('keeps it even when the agent reverted it and it has no changes left', () => {
+    expect(fileAfterReload([file('a.ts'), file('b.ts', { add: 1, del: 0 })], 'a.ts')).toBe('a.ts');
+  });
+
+  it('falls back to the first changed file once that file is gone from the tree', () => {
+    expect(fileAfterReload(tree, 'deleted.ts')).toBe('a.ts');
+  });
+
+  it('opens on the first changed file, not the first file, with nothing to keep', () => {
+    expect(fileAfterReload(tree, null)).toBe('a.ts');
+  });
+
+  it('has nothing to open when the tree has no changed file left', () => {
+    expect(fileAfterReload([file('README.md')], 'deleted.ts')).toBeNull();
   });
 });
 

@@ -152,6 +152,17 @@ export function findFileNode(nodes: TreeNode[], path: string): TreeNode | null {
   return null;
 }
 
+// The file a reloaded tree opens on. Refresh hands in the file the reviewer was
+// reading and gets it back whenever the new tree still has it — being bounced to the
+// top of the diff is exactly what makes a reload unusable mid-review. Everything else
+// (a Repo, Diff Mode or Base Branch switch) hands in null and lands on the first
+// changed file: the reviewer came here for the diff, even when the sidebar is also
+// listing unchanged files.
+export function fileAfterReload(nodes: TreeNode[], previous: string | null): string | null {
+  if (previous && findFileNode(nodes, previous)) return previous;
+  return firstFilePath(pruneToChanged(nodes));
+}
+
 export type SplitSide = { kind: DiffLine['kind']; no: number | null; text: string; idx: number; commentable?: boolean } | null;
 
 // Only the right (new-side) column is commentable: a del line is gone from the
