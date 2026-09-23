@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ziff",
+  "productName": "Ziff",
   "version": "0.1.0",
   "identifier": "com.zengl.ziff",
   "build": {
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "ziff",
-        "width": 800,
-        "height": 600
+        "title": "Ziff",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600
       }
     ],
     "security": {

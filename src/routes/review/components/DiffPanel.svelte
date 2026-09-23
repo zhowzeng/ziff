@@ -11,6 +11,7 @@
   import { toast } from "$lib/toast/state.svelte";
   import { commentQueue } from "../comment-queue.svelte";
   import { selection } from "../selection.svelte";
+  import { nextFileShortcut, nextHunkShortcut, prevFileShortcut, prevHunkShortcut } from "../shortcuts";
   import {
     fileLineRange,
     flattenHunks,
@@ -91,6 +92,31 @@
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  // n / p scroll the next or previous hunk header up to just under the sticky file
+  // header. Handled here rather than at page level because this panel owns the scroll
+  // position; File View has no hunk headers, so there it finds nothing to jump to.
+  let panel = $state<HTMLElement | null>(null);
+  $effect(() => {
+    function onKey(e: KeyboardEvent) {
+      const step = nextHunkShortcut.matches(e) ? 1 : prevHunkShortcut.matches(e) ? -1 : 0;
+      if (step !== 0 && panel) jumpToHunk(panel, step);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  function jumpToHunk(el: HTMLElement, step: 1 | -1) {
+    const stickyHeight = el.querySelector<HTMLElement>(".diff-panel-header")?.offsetHeight ?? 0;
+    const top = el.getBoundingClientRect().top + stickyHeight;
+    // Each header's distance below the top of the visible diff. A header already sitting
+    // there (within a pixel of rounding) is the current one, not the next or previous.
+    const offsets = [...el.querySelectorAll<HTMLElement>("[data-hunk-header]")].map(
+      (h) => h.getBoundingClientRect().top - top,
+    );
+    const target = step > 0 ? offsets.find((d) => d > 1) : offsets.filter((d) => d < -1).pop();
+    if (target !== undefined) el.scrollBy({ top: target });
+  }
 
   function gutterDown(i: number) {
     selection.startDrag(i);
@@ -292,10 +318,10 @@
   </main>
 {:else if !selectedFile}
   <main class="diff-panel diff-panel-empty">
-    <EmptyState size="md" icon="file-code" title="選擇一個檔案查看 diff" hint="從左側的檔案清單選擇一個變更的檔案。" />
+    <EmptyState size="md" icon="file-code" title="選擇一個檔案查看 diff" hint={`從左側的檔案清單選擇一個變更的檔案，或按 ${nextFileShortcut.label} / ${prevFileShortcut.label} 逐一切換。`} />
   </main>
 {:else}
-  <main class="diff-panel">
+  <main class="diff-panel" bind:this={panel}>
     <div class="diff-panel-header">
       <div class="file-header-wrap">
         <FileHeader

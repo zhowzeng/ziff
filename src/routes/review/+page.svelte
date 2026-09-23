@@ -12,8 +12,8 @@
   import { commentQueue } from "./comment-queue.svelte";
   import { selection } from "./selection.svelte";
   import { resolveAgainstWorktree } from "./handoff";
-  import { formatForAgent, formatQueueForAgent, pruneToChanged } from "./helpers";
-  import { copyAllShortcut, refreshShortcut } from "./shortcuts";
+  import { adjacentChangedFile, formatForAgent, formatQueueForAgent, pruneToChanged } from "./helpers";
+  import { copyAllShortcut, nextFileShortcut, prevFileShortcut, refreshShortcut } from "./shortcuts";
   import { toast } from "$lib/toast/state.svelte";
   import { DIFF_FONT_SIZE_PX, settings, updateSettings } from "$lib/settings/state.svelte";
   import type { DiffMode, Repo } from "./types";
@@ -35,14 +35,22 @@
   // here is scoped to the Repo being reviewed.
   let queueItems = $derived(commentQueue.itemsFor(reviewState.repoId));
 
-  // Both shortcuts live here rather than beside the buttons that print them: the drawer
-  // is only rendered while it is open, and Refresh has to swallow its keystroke whether
-  // or not there is a Repo to reload — see shortcuts.ts.
+  // These shortcuts live here rather than beside the buttons that print them: the drawer
+  // is only rendered while it is open, Refresh has to swallow its keystroke whether or
+  // not there is a Repo to reload, and j / k need the whole tree — see shortcuts.ts.
   $effect(() => {
     function onKey(e: KeyboardEvent) {
       if (refreshShortcut.matches(e)) {
         e.preventDefault();
         refresh();
+        return;
+      }
+      const step = nextFileShortcut.matches(e) ? 1 : prevFileShortcut.matches(e) ? -1 : 0;
+      // A Modal is in front of the tree, so the file behind it isn't the reviewer's to
+      // switch right now.
+      if (step !== 0 && !settingsOpen && !removeTarget) {
+        const path = adjacentChangedFile(reviewState.tree, reviewState.selectedFile, step);
+        if (path) selectFile(path);
         return;
       }
       // Nothing to copy means nothing to swallow the keystroke for.
