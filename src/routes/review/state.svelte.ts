@@ -316,6 +316,12 @@ class ReviewState {
       this.branches = branches;
       this.detachedHead = detachedHead;
       this.branch = branches.find((b) => b.isCurrent)?.name ?? null;
+      // Checking out the Base Branch itself leaves nothing branch-specific to compare,
+      // so fall back to the Repo's default branch when that is a different one.
+      const defaultBranch = this.repo?.defaultBranch ?? null;
+      if (this.branch && this.branch === this.baseBranch && defaultBranch !== this.branch) {
+        this.baseBranch = defaultBranch;
+      }
     } catch (e) {
       toast(`載入分支清單失敗：${e}`, { variant: 'danger' });
     }

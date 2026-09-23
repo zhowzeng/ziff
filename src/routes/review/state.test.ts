@@ -337,4 +337,33 @@ describe('refresh', () => {
     expect(reviewState.selectedFile).toBeNull();
     expect(api.getFileTree).not.toHaveBeenCalled();
   });
+
+  it('moves the Base Branch back to the default once it is the one checked out', async () => {
+    reviewState.repos = [{ id: 'a', name: 'a', path: '/a', defaultBranch: 'main' }];
+    await openRepo('a');
+    await reviewState.setDiffMode('branch');
+    api.getFileTree.mockResolvedValueOnce([]);
+    await reviewState.setBaseBranch('develop');
+    api.listBranches.mockResolvedValueOnce(branchList('develop'));
+    api.getFileTree.mockResolvedValueOnce([]);
+
+    await reviewState.refresh();
+
+    expect(reviewState.branch).toBe('develop');
+    expect(reviewState.baseBranch).toBe('main');
+  });
+
+  it('keeps the default Base Branch when the default branch itself is checked out', async () => {
+    reviewState.repos = [{ id: 'a', name: 'a', path: '/a', defaultBranch: 'main' }];
+    api.listBranches.mockResolvedValueOnce(branchList('feature'));
+    api.getFileTree.mockResolvedValueOnce([]);
+    await reviewState.selectRepo('a');
+    api.listBranches.mockResolvedValueOnce(branchList('main'));
+    api.getFileTree.mockResolvedValueOnce([]);
+
+    await reviewState.refresh();
+
+    expect(reviewState.branch).toBe('main');
+    expect(reviewState.baseBranch).toBe('main');
+  });
 });
