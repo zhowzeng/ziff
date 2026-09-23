@@ -47,12 +47,27 @@ impl Side {
             // A file the index still lists but the worktree no longer has reads as
             // empty, which is what a deletion diffs to anyway.
             Side::Worktree(path) => match std::fs::read(path) {
-                Ok(bytes) => Ok(bytes),
+                Ok(bytes) => to_git(git, path, bytes),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
                 Err(e) => Err(e.into()),
             },
         }
     }
+}
+
+/// A worktree file's bytes as git would store them -- `core.autocrlf`, `.gitattributes`
+/// `eol` / `text` and the rest applied -- so they diff against a blob the way `git diff`
+/// does. Without this, a CRLF checkout of an LF blob differs on every line.
+fn to_git(git: &gix::Repository, path: &std::path::Path, bytes: Vec<u8>) -> Result<Vec<u8>, Error> {
+    let rela_path = path.strip_prefix(git.workdir().ok_or("This repo has no working tree")?)?;
+    let (mut pipeline, index) = git.filter_pipeline(None)?;
+    let mut outcome = pipeline.convert_to_git(bytes.as_slice(), rela_path, &index)?;
+    if !outcome.is_changed() {
+        return Ok(bytes);
+    }
+    let mut out = Vec::new();
+    std::io::Read::read_to_end(&mut outcome, &mut out)?;
+    Ok(out)
 }
 
 /// Fixtures the tests on both halves need: `changes` drives a rename through every Diff

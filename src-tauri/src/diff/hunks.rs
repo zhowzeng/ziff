@@ -307,6 +307,36 @@ mod tests {
         );
     }
 
+    /// A CRLF checkout of LF blobs (`core.autocrlf=true`, as on Windows) diffs only the
+    /// line that changed, the way `git diff` does -- not every line of the file.
+    #[test]
+    fn a_crlf_worktree_diffs_like_git_diff() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        git(dir.path(), DATE, &["config", "core.autocrlf", "true"]);
+        let before: String = (1..=10).map(|i| format!("line {i}\n")).collect();
+        write(dir.path(), "big.txt", &before);
+        git(dir.path(), DATE, &["add", "."]);
+        git(dir.path(), DATE, &["commit", "-m", "big"]);
+        let after: String = (1..=10)
+            .map(|i| match i {
+                5 => "EDITED 5\r\n".to_string(),
+                _ => format!("line {i}\r\n"),
+            })
+            .collect();
+        write(dir.path(), "big.txt", &after);
+
+        let git_repo = open(dir.path());
+        let files = changed_files(&git_repo, &spec(DiffMode::Unstaged, None)).expect("ok");
+        let changes = count_changes(&git_repo, &files[0]).expect("count");
+        assert_eq!((changes.add, changes.del), (1, 1));
+        let hunks = hunks_of(dir.path(), &spec(DiffMode::Unstaged, None), "big.txt");
+        assert_eq!(
+            as_unified(&hunks),
+            git_diff_hunks(dir.path(), &["--", "big.txt"])
+        );
+    }
+
     /// The same, for Branch mode: its numbers have to be the ones
     /// `git diff $(git merge-base main HEAD)` prints, uncommitted edits included --
     /// which `git diff main...feature` would not show (ADR 0012).
