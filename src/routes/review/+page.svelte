@@ -71,11 +71,22 @@
       toast(`複製到剪貼簿失敗：${e}`, { variant: "danger" });
       return;
     }
-    toast(`已複製 ${comments.length} 則 comment`, { variant: "success" });
+    // The copy is the hand-off, and a comment that has been handed off has done its job,
+    // so the copy empties the queue (docs/decisions/0014). A copy that went to the wrong
+    // window took the queue with it — that is what the undo is for, and it is only on
+    // offer while the toast is, so this toast stands longer than a plain report.
+    const handedOff = commentQueue.takeFor(repoId);
+    toast(`已複製 ${comments.length} 則 comment，queue 已清空`, {
+      variant: "success",
+      duration: 8000,
+      action: { label: "復原", onclick: () => commentQueue.restore(handedOff) },
+    });
   }
 
-  // The drawer's per-comment copy is a hand-off too, so it runs the same check. It
-  // lives here rather than in the drawer because that check needs the Repo.
+  // The drawer's per-comment copy runs the same check, but it re-copies one comment
+  // rather than handing the queue over, so it leaves the queue alone — only the bulk
+  // copy empties it (docs/decisions/0014). It lives here rather than in the drawer
+  // because that check needs the Repo.
   async function copyOneForAgent(id: string) {
     const repoId = reviewState.repoId;
     const item = queueItems.find((i) => i.id === id);

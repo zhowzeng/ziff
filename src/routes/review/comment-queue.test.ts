@@ -104,6 +104,44 @@ describe('lineKeys', () => {
   });
 });
 
+// Copying the queue empties it (docs/decisions/0014), and the toast's undo puts that
+// batch back. Both halves are Repo-scoped: a hand-off in one Repo must not take the
+// other Repo's comments with it.
+describe('takeFor', () => {
+  it("takes only the asking Repo's comments, and returns them", () => {
+    queue.add(comment('a', 'Cargo.toml', 'from a', anchor(12)));
+    queue.add(comment('b', 'Cargo.toml', 'from b', anchor(12)));
+
+    const taken = queue.takeFor('a');
+
+    expect(taken.map((i) => i.text)).toEqual(['from a']);
+    expect(queue.itemsFor('a')).toEqual([]);
+    expect(queue.itemsFor('b').map((i) => i.text)).toEqual(['from b']);
+  });
+
+  it('restores the same comments, ids and all', () => {
+    queue.add(comment('a', 'Cargo.toml', 'first', anchor(12)));
+    queue.add(comment('a', 'Cargo.toml', 'second', anchor(30)));
+    const ids = queue.itemsFor('a').map((i) => i.id);
+
+    queue.restore(queue.takeFor('a'));
+
+    expect(queue.itemsFor('a').map((i) => i.id)).toEqual(ids);
+    expect(queue.itemsFor('a').map((i) => i.text)).toEqual(['first', 'second']);
+    // A restored comment is still the one its range reopens into, not a second copy.
+    expect(queue.find('a', 'Cargo.toml', anchor(12))?.id).toBe(ids[0]);
+  });
+
+  it('leaves the other Repo where it was when a hand-off is undone', () => {
+    queue.add(comment('a', 'Cargo.toml', 'from a', anchor(12)));
+    queue.add(comment('b', 'Cargo.toml', 'from b', anchor(12)));
+
+    queue.restore(queue.takeFor('a'));
+
+    expect(queue.itemsFor('b').map((i) => i.text)).toEqual(['from b']);
+  });
+});
+
 describe('removeRepo', () => {
   it("takes only the removed Repo's comments", () => {
     queue.add(comment('a', 'Cargo.toml', 'from a', anchor(12)));
