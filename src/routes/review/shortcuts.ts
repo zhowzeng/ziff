@@ -24,3 +24,34 @@ export const refreshShortcut = {
     return (isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'r';
   },
 };
+
+// The navigation keys below are bare letters, so they must stay out of the way while
+// the reviewer is typing — a comment in the thread's Textarea, or a name in the file
+// filter. A focused checkbox or button isn't typing, and swallowing the key there would
+// only make the shortcut look broken after a click.
+function isTyping(e: KeyboardEvent) {
+  const t = e.target;
+  if (!(t instanceof HTMLElement)) return false;
+  if (t.isContentEditable || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return true;
+  return t instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit'].includes(t.type);
+}
+
+// Any modifier means the keystroke is meant for something else (⌘J, a browser binding),
+// and Shift turns `j` into `J`, which these don't claim either.
+function bareKey(key: string) {
+  return {
+    label: key,
+    matches(e: KeyboardEvent) {
+      return e.key === key && !e.metaKey && !e.ctrlKey && !e.altKey && !isTyping(e);
+    },
+  };
+}
+
+// File and hunk navigation, after GitHub's j / k and Vim's n / p muscle memory.
+// j / k move through the changed files in sidebar order; handled at page level, which
+// owns the tree. n / p jump between hunks of the open diff; handled in DiffPanel, which
+// owns the scroll position.
+export const nextFileShortcut = bareKey('j');
+export const prevFileShortcut = bareKey('k');
+export const nextHunkShortcut = bareKey('n');
+export const prevHunkShortcut = bareKey('p');

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adjacentChangedFile,
   fileAfterReload,
   flattenHunks,
   formatForAgent,
@@ -187,6 +188,34 @@ describe('fileAfterReload', () => {
 
   it('has nothing to open when the tree has no changed file left', () => {
     expect(fileAfterReload([file('README.md')], 'deleted.ts')).toBeNull();
+  });
+});
+
+describe('adjacentChangedFile', () => {
+  const tree = [
+    dir('src', [file('a.ts', { add: 1, del: 0 }), file('b.ts'), file('c.ts', { add: 2, del: 0 })]),
+    file('d.ts', { add: 1, del: 1 }),
+  ];
+
+  it('moves through changed files in sidebar order, skipping unchanged ones', () => {
+    expect(adjacentChangedFile(tree, 'a.ts', 1)).toBe('c.ts');
+    expect(adjacentChangedFile(tree, 'c.ts', 1)).toBe('d.ts');
+    expect(adjacentChangedFile(tree, 'c.ts', -1)).toBe('a.ts');
+  });
+
+  it('stops at either end instead of wrapping', () => {
+    expect(adjacentChangedFile(tree, 'd.ts', 1)).toBeNull();
+    expect(adjacentChangedFile(tree, 'a.ts', -1)).toBeNull();
+  });
+
+  it('starts from the end it is heading away from when no changed file is open', () => {
+    expect(adjacentChangedFile(tree, null, 1)).toBe('a.ts');
+    expect(adjacentChangedFile(tree, null, -1)).toBe('d.ts');
+    expect(adjacentChangedFile(tree, 'b.ts', 1)).toBe('a.ts');
+  });
+
+  it('has nowhere to go without changed files', () => {
+    expect(adjacentChangedFile([file('README.md')], null, 1)).toBeNull();
   });
 });
 

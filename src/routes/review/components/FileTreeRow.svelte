@@ -16,12 +16,20 @@
   let isDir = $derived(node.type === 'dir');
   let isOpen = $derived(expanded.has(node.path));
   let isSelected = $derived(selected === node.path);
+
+  // j / k can select a file scrolled out of the sidebar; follow it there. `nearest`
+  // leaves the list alone when the row is already on screen, as it is after a click.
+  /** @param {HTMLElement} el */
+  function followSelection(el) {
+    if (isSelected) el.scrollIntoView({ block: 'nearest' });
+  }
 </script>
 
 <div>
   <div
     role="button"
     tabindex="0"
+    {@attach followSelection}
     onclick={() => (isDir ? onToggle(node.path) : onSelect(node.path))}
     onkeydown={(e) => {
       if (e.key === ' ' || e.key === 'Enter') {

@@ -33,6 +33,23 @@ export function firstFilePath(nodes: TreeNode[]): string | null {
   return null;
 }
 
+// The changed file `step` places away from `current`, in the order the sidebar lists
+// them — what j / k move through. Only changed files: they are what's under review, even
+// when the sidebar is also listing unchanged ones. From a file that isn't one of them
+// (nothing open yet, or an unchanged file opened from the full tree) it starts at
+// whichever end it's heading away from. Stops at the ends rather than wrapping, so
+// holding the key down doesn't quietly start the review over. Null when there is
+// nowhere to go.
+export function adjacentChangedFile(nodes: TreeNode[], current: string | null, step: 1 | -1): string | null {
+  const paths: string[] = [];
+  const walk = (ns: TreeNode[]) =>
+    ns.forEach((n) => (n.type === 'file' ? paths.push(n.path) : walk(n.children)));
+  walk(pruneToChanged(nodes));
+  const i = current === null ? -1 : paths.indexOf(current);
+  if (i === -1) return (step > 0 ? paths[0] : paths[paths.length - 1]) ?? null;
+  return paths[i + step] ?? null;
+}
+
 export function allDirPaths(nodes: TreeNode[]): string[] {
   const paths: string[] = [];
   const walk = (ns: TreeNode[]) =>
