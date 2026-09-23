@@ -187,14 +187,24 @@ class ReviewState {
 
   // The one action the agent workflow needs and the diff never had: re-read the tree
   // and the open diff straight off disk, with no ssh round-trip (docs/decisions/0011)
-  // and no bouncing the reviewer off the file they were reading.
+  // and no bouncing the reviewer off the file they were reading. The branch is re-read
+  // too: a checkout in the terminal changes what's under review (docs/decisions/0010).
   async refresh() {
+    await this.#reloadBranches();
     await this.reloadTree({ keepSelection: true });
   }
 
   async reloadTree({ keepSelection = false } = {}) {
     const spec = this.spec;
-    if (!spec) return;
+    if (!spec) {
+      // No branch under review (a detached HEAD), so whatever tree was showing belongs
+      // to a branch the Repo is no longer on.
+      this.#treeSeq++;
+      this.#diffSeq++;
+      this.tree = [];
+      this.#clearSelection();
+      return;
+    }
     const seq = ++this.#treeSeq;
     this.#diffSeq++;
     // Refresh keeps showing the file it is reloading, so its selection can only be
@@ -294,7 +304,8 @@ class ReviewState {
     }
   }
 
-  // Refreshes ahead/behind counts after a fetch, keeping the current selection.
+  // Refreshes ahead/behind counts and follows whatever branch is now checked out,
+  // keeping the current file selection.
   async #reloadBranches() {
     const id = this.repoId;
     if (!id) return;
@@ -304,6 +315,7 @@ class ReviewState {
       if (seq !== this.#branchSeq) return;
       this.branches = branches;
       this.detachedHead = detachedHead;
+      this.branch = branches.find((b) => b.isCurrent)?.name ?? null;
     } catch (e) {
       toast(`載入分支清單失敗：${e}`, { variant: 'danger' });
     }

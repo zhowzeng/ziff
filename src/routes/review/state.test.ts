@@ -300,6 +300,7 @@ describe('file load', () => {
     // the reviewer on. Nothing selects a file on the way out, so the reload moving the
     // sequence itself is the only thing keeping the diff of a file that is gone from
     // landing on an empty selection.
+    api.listBranches.mockResolvedValueOnce(branchList('main'));
     api.getFileTree.mockResolvedValueOnce([]);
     await reviewState.refresh();
 
@@ -308,5 +309,32 @@ describe('file load', () => {
 
     expect(reviewState.selectedFile).toBeNull();
     expect(reviewState.diffHunks).toEqual([]);
+  });
+});
+
+describe('refresh', () => {
+  it('follows a branch checked out in the terminal since the last load', async () => {
+    await openRepo('a', [fileNode('one.ts')]);
+    api.listBranches.mockResolvedValueOnce(branchList('feature'));
+    api.getFileTree.mockResolvedValueOnce([fileNode('two.ts')]);
+
+    await reviewState.refresh();
+
+    expect(reviewState.branch).toBe('feature');
+    expect(api.getFileTree).toHaveBeenCalledWith(expect.objectContaining({ branch: 'feature' }));
+    expect(reviewState.tree.map((n) => n.path)).toEqual(['two.ts']);
+  });
+
+  it('drops the tree once the Repo is on a detached HEAD', async () => {
+    await openRepo('a', [fileNode('one.ts')]);
+    api.listBranches.mockResolvedValueOnce({ branches: [], detachedHead: 'c0ffee' });
+
+    await reviewState.refresh();
+
+    expect(reviewState.branch).toBeNull();
+    expect(reviewState.detachedHead).toBe('c0ffee');
+    expect(reviewState.tree).toEqual([]);
+    expect(reviewState.selectedFile).toBeNull();
+    expect(api.getFileTree).not.toHaveBeenCalled();
   });
 });
