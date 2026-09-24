@@ -7,6 +7,8 @@ export type DefaultDiffMode = 'unstaged' | 'staged' | 'branch';
 export interface Settings {
   diffFontSize: DiffFontSize;
   defaultDiffMode: DefaultDiffMode;
+  /** Wrap lines wider than the panel instead of scrolling sideways to them. */
+  lineWrap: boolean;
   usePrefixPrompt: boolean;
   prefixPrompt: string;
 }
@@ -14,6 +16,7 @@ export interface Settings {
 const DEFAULT_SETTINGS: Settings = {
   diffFontSize: 'md',
   defaultDiffMode: 'unstaged',
+  lineWrap: false,
   usePrefixPrompt: false,
   prefixPrompt: '',
 };
@@ -42,6 +45,7 @@ function sanitize(stored: unknown): Settings {
     defaultDiffMode: DEFAULT_DIFF_MODES.includes(s.defaultDiffMode as DefaultDiffMode)
       ? (s.defaultDiffMode as DefaultDiffMode)
       : DEFAULT_SETTINGS.defaultDiffMode,
+    lineWrap: typeof s.lineWrap === 'boolean' ? s.lineWrap : DEFAULT_SETTINGS.lineWrap,
     usePrefixPrompt:
       typeof s.usePrefixPrompt === 'boolean' ? s.usePrefixPrompt : DEFAULT_SETTINGS.usePrefixPrompt,
     prefixPrompt: typeof s.prefixPrompt === 'string' ? s.prefixPrompt : DEFAULT_SETTINGS.prefixPrompt,

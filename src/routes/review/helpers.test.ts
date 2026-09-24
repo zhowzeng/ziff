@@ -6,6 +6,8 @@ import {
   formatForAgent,
   formatQueueForAgent,
   lineRange,
+  inlineDiff,
+  inlineSegments,
   pairHunkLines,
   pruneByName,
   pruneToChanged,
@@ -287,5 +289,47 @@ describe('formatForAgent', () => {
       'src/foo.rs (commented at L12-L13; that code is no longer in the file)\n' +
         '> let x = foo()?;\n> let y = bar()?;\nfirst line\nsecond line'
     );
+  });
+});
+
+const marked = (segs: { text: string; changed: boolean }[]) => segs.filter((s) => s.changed).map((s) => s.text);
+
+describe('inlineDiff', () => {
+  it('marks only the words that changed on each side', () => {
+    const diff = inlineDiff('const x = foo(bar);', 'const x = foo(baz);');
+    expect(diff && marked(diff.old)).toEqual(['bar']);
+    expect(diff && marked(diff.new)).toEqual(['baz']);
+  });
+
+  it('keeps the whole line text across its segments', () => {
+    const diff = inlineDiff('a b c', 'a x c');
+    expect(diff?.old.map((s) => s.text).join('')).toBe('a b c');
+    expect(diff?.new.map((s) => s.text).join('')).toBe('a x c');
+  });
+
+  it('marks the space between two changed words with them', () => {
+    const diff = inlineDiff('available: list existing files', 'available: only the files');
+    expect(diff && marked(diff.new)).toEqual(['only the']);
+  });
+
+  it('lines up a word with its own copy, not a later one that shares only whitespace', () => {
+    const diff = inlineDiff('overwrite in input_files. Read', 'listed in input_files are copied in. Read');
+    expect(diff && marked(diff.old)).toEqual(['overwrite']);
+    expect(diff && marked(diff.new)).toEqual(['listed', 'are copied in']);
+  });
+
+  it('marks nothing when the lines share no word', () => {
+    expect(inlineDiff('alpha beta', 'gamma delta')).toBeNull();
+  });
+});
+
+describe('inlineSegments', () => {
+  it('compares the n-th del of a run with the n-th add after it', () => {
+    const segs = inlineSegments(numbered([ctx(1, 1), del(2, 'let a = 1;'), del(3, 'x'), add(2, 'let a = 2;')]));
+    expect(marked(segs.get(1)!)).toEqual(['1']);
+    expect(marked(segs.get(3)!)).toEqual(['2']);
+    // The unpaired del and the context line have nothing to compare against.
+    expect(segs.has(0)).toBe(false);
+    expect(segs.has(2)).toBe(false);
   });
 });

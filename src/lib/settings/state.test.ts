@@ -10,6 +10,7 @@ const STORAGE_KEY = 'ziff.settings';
 const DEFAULTS = {
   diffFontSize: 'md',
   defaultDiffMode: 'unstaged',
+  lineWrap: false,
   usePrefixPrompt: false,
   prefixPrompt: '',
 };
@@ -62,6 +63,11 @@ describe('stored value with bad fields', () => {
     expect(settings.defaultDiffMode).toBe('unstaged');
   });
 
+  it('replaces a lineWrap that is not a boolean', async () => {
+    const { settings } = await loadWith(JSON.stringify({ ...DEFAULTS, lineWrap: 'yes' }));
+    expect(settings.lineWrap).toBe(false);
+  });
+
   it('replaces a prefixPrompt that is not a string', async () => {
     const { settings } = await loadWith(JSON.stringify({ ...DEFAULTS, prefixPrompt: 7 }));
     expect(settings.prefixPrompt).toBe('');
@@ -81,10 +87,11 @@ describe('stored value with bad fields', () => {
 describe('round trip', () => {
   it('keeps a value it wrote itself', async () => {
     const { settings, updateSettings } = await loadWith(null);
-    updateSettings({ diffFontSize: 'sm', usePrefixPrompt: true, prefixPrompt: 'review this' });
+    updateSettings({ diffFontSize: 'sm', lineWrap: true, usePrefixPrompt: true, prefixPrompt: 'review this' });
     expect({ ...settings }).toEqual({
       diffFontSize: 'sm',
       defaultDiffMode: 'unstaged',
+      lineWrap: true,
       usePrefixPrompt: true,
       prefixPrompt: 'review this',
     });
