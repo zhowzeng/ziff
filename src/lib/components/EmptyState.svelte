@@ -1,6 +1,7 @@
 <script>
   import Icon from './Icon.svelte';
 
+  /** @type {{ icon: import('./Icon.svelte').IconName, title: string, hint?: string, size?: 'md' | 'sm' }} */
   let { icon, title, hint = undefined, size = 'md' } = $props();
 
   let iconSize = $derived(size === 'md' ? 28 : 22);

@@ -3,7 +3,7 @@
 
   /**
    * @typedef {Object} Props
-   * @property {string} icon
+   * @property {import('./Icon.svelte').IconName} icon
    * @property {number} [size]
    * @property {string} [title]
    * @property {(e: MouseEvent) => void} [onclick]

@@ -10,14 +10,14 @@
 
   /**
    * @typedef {Object} OptionAction
-   * @property {string} icon
+   * @property {import('./Icon.svelte').IconName} icon
    * @property {string} title
    * @property {(value: string) => void} onAction
    */
 
   /**
    * @typedef {Object} Props
-   * @property {string} [icon]
+   * @property {import('./Icon.svelte').IconName} [icon]
    * @property {string} [label]
    * @property {string} [sublabel]
    * @property {DropdownOption[]} options
