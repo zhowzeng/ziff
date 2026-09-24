@@ -42,7 +42,7 @@
       style="position:absolute;left:2px;top:1px;width:16px;height:18px;border-radius:4px;border:none;background:var(--accent-emphasis);color:#fff;font-size:12px;line-height:1;cursor:pointer;z-index:1"
     >+</button>
   {/if}
-  <span style="width:72px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:8px">{lineNo}</span>
+  <span style="width:72px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:8px;flex-shrink:0">{lineNo}</span>
   <span
     title={commented ? '這一行已留言' : undefined}
     style="width:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;user-select:none"
@@ -52,6 +52,6 @@
     {/if}
   </span>
   <!-- Stands in for the diff's +/- column so File View content lines up with a diff's. -->
-  <span style="width:14px"></span>
-  <span style="color:var(--text-primary);white-space:pre">{content}</span>
+  <span style="width:14px;flex-shrink:0"></span>
+  <span style="color:var(--text-primary);white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0">{content}</span>
 </div>

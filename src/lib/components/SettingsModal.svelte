@@ -49,6 +49,10 @@
       <span class="row-label">預設 Diff 模式</span>
       <Segmented value={settings.defaultDiffMode} onChange={(v) => onChange({ defaultDiffMode: /** @type {DefaultDiffMode} */ (v) })} options={DEFAULT_DIFF_MODES} />
     </div>
+    <div class="row">
+      <span class="row-label">長行自動換行</span>
+      <Switch checked={settings.lineWrap} onchange={(v) => onChange({ lineWrap: v })} />
+    </div>
   </div>
 
   <div class="section last">

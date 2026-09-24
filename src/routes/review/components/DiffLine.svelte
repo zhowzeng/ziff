@@ -76,7 +76,7 @@
     {/if}
   </span>
   <span style={`width:14px;flex-shrink:0;color:${k.text};user-select:none`}>{k.prefix}</span>
-  <span style={`color:${k.text};white-space:pre`}>{@render children?.()}</span>
+  <span style={`color:${k.text};white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0`}>{@render children?.()}</span>
   {#if commentable && hover && !onGutterDown}
     <button
       onclick={onAddComment}

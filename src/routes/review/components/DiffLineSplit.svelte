@@ -46,12 +46,13 @@
   let kRight = $derived(kinds[right?.kind || 'context']);
 </script>
 
-<div style="display:flex;font-family:var(--font-mono);font-size:var(--diff-font-size);line-height:20px">
+<!-- The row is laid out by DiffPanel's split grid: each side is a cell of it. -->
+<div style="display:contents;font-family:var(--font-mono);font-size:var(--diff-font-size);line-height:20px">
   <!-- The left column carries the old side only: a drag started there would anchor a
        comment to a line the worktree no longer has (docs/decisions/0010). It still
        highlights when a drag down the new side sweeps past it, same as Unified view. -->
   <div
-    style={`flex:1;display:flex;background:${leftSelected ? 'var(--accent-subtle)' : left ? kLeft.bg : 'var(--bg-subtle)'};
+    style={`display:flex;background:${leftSelected ? 'var(--accent-subtle)' : left ? kLeft.bg : 'var(--bg-subtle)'};
       border-left:3px solid ${leftSelected ? 'var(--accent-emphasis)' : left ? kLeft.bar : 'transparent'};min-width:0`}
   >
     <span style="width:34px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px;flex-shrink:0">{left ? left.no ?? '' : ''}</span>
@@ -64,7 +65,7 @@
       {/if}
     </span>
     <span style={`width:14px;color:${left ? kLeft.text : 'transparent'};user-select:none;flex-shrink:0`}>{left ? kLeft.prefix : ''}</span>
-    <span style={`color:${left ? kLeft.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{#if left}<InlineText text={left.text ?? ''} segments={leftSegments} kind={left.kind || 'context'} />{/if}</span>
+    <span style={`color:${left ? kLeft.text : 'transparent'};white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0`}>{#if left}<InlineText text={left.text ?? ''} segments={leftSegments} kind={left.kind || 'context'} />{/if}</span>
   </div>
   <div style="width:1px;background:var(--border-muted);flex-shrink:0"></div>
   <div
@@ -74,7 +75,7 @@
       if (right) onGutterEnter?.(right.idx);
     }}
     onmouseleave={() => (rightHover = false)}
-    style={`flex:1;display:flex;position:relative;background:${rightSelected ? 'var(--accent-subtle)' : right ? kRight.bg : 'var(--bg-subtle)'};
+    style={`display:flex;position:relative;background:${rightSelected ? 'var(--accent-subtle)' : right ? kRight.bg : 'var(--bg-subtle)'};
       border-left:3px solid ${rightSelected ? 'var(--accent-emphasis)' : right ? kRight.bar : 'transparent'};min-width:0`}
   >
     {#if right?.commentable && (rightHover || rightSelected) && onGutterDown}
@@ -97,6 +98,6 @@
       {/if}
     </span>
     <span style={`width:14px;color:${right ? kRight.text : 'transparent'};user-select:none;flex-shrink:0`}>{right ? kRight.prefix : ''}</span>
-    <span style={`color:${right ? kRight.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{#if right}<InlineText text={right.text ?? ''} segments={rightSegments} kind={right.kind || 'context'} />{/if}</span>
+    <span style={`color:${right ? kRight.text : 'transparent'};white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0`}>{#if right}<InlineText text={right.text ?? ''} segments={rightSegments} kind={right.kind || 'context'} />{/if}</span>
   </div>
 </div>

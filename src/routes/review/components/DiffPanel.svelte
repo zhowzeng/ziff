@@ -55,6 +55,8 @@
     loading: boolean;
     noRepos: boolean;
     hasChanges: boolean;
+    /** Wrap long lines in the panel's width; otherwise the panel scrolls sideways. */
+    lineWrap: boolean;
   }
   let {
     repoId,
@@ -73,6 +75,7 @@
     loading,
     noRepos,
     hasChanges,
+    lineWrap,
   }: Props = $props();
 
   let isFileView = $derived(selectedView === "file");
@@ -100,6 +103,9 @@
   // header. Handled here rather than at page level because this panel owns the scroll
   // position; File View has no hunk headers, so there it finds nothing to jump to.
   let panel = $state<HTMLElement | null>(null);
+  // Without wrapping the lines scroll sideways, and the comment thread is held to this
+  // width so it stays in view instead of stretching to the widest line.
+  let panelWidth = $state(0);
   $effect(() => {
     function onKey(e: KeyboardEvent) {
       const step = nextHunkShortcut.matches(e) ? 1 : prevHunkShortcut.matches(e) ? -1 : 0;
@@ -333,7 +339,7 @@
     <EmptyState size="md" icon="file-code" title="選擇一個檔案查看 diff" hint={`從左側的檔案清單選擇一個變更的檔案，或按 ${nextFileShortcut.label} / ${prevFileShortcut.label} 逐一切換。`} />
   </main>
 {:else}
-  <main class="diff-panel" bind:this={panel}>
+  <main class="diff-panel" bind:this={panel} bind:clientWidth={panelWidth}>
     <div class="diff-panel-header">
       <div class="file-header-wrap">
         <FileHeader
@@ -348,88 +354,94 @@
       {/if}
     </div>
 
-    {#if isFileView}
-      {#if loadingFile}
-        <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入檔案…" /></div>
-      {:else if fileBinary}
+    <div class="diff-body" class:nowrap={!lineWrap} style:--diff-white-space={lineWrap ? "pre-wrap" : "pre"} style:--panel-width={`${panelWidth}px`}>
+      {#if isFileView}
+        {#if loadingFile}
+          <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入檔案…" /></div>
+        {:else if fileBinary}
+          <div class="diff-body-empty">
+            <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案不是文字檔，無法逐行顯示，也無法留言。" />
+          </div>
+        {:else if fileLines.length === 0}
+          <div class="diff-body-empty">
+            <EmptyState size="md" icon="file" title="這個檔案是空的" hint="檔案沒有任何內容可以顯示。" />
+          </div>
+        {:else}
+          {#each fileLines as content, i (i)}
+            <FileLine
+              lineNo={i + 1}
+              {content}
+              index={i}
+              selected={selection.includes(i)}
+              commented={commentedKeys.has(`file:${i + 1}`)}
+              onGutterDown={gutterDown}
+              onGutterEnter={gutterEnter}
+            />
+            {#if selection.range && i === selection.range.hi}
+              {@render commentBlock()}
+            {/if}
+          {/each}
+        {/if}
+      {:else if loadingDiff}
+        <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入 diff…" /></div>
+      {:else if diffBinary}
         <div class="diff-body-empty">
-          <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案不是文字檔，無法逐行顯示，也無法留言。" />
+          <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案有變更，但不是文字檔，無法逐行顯示 diff，也無法留言。" />
         </div>
-      {:else if fileLines.length === 0}
+      {:else if diffHunks.length === 0}
         <div class="diff-body-empty">
-          <EmptyState size="md" icon="file" title="這個檔案是空的" hint="檔案沒有任何內容可以顯示。" />
+          <EmptyState size="md" icon="file-check" title="這個檔案沒有變更" hint="選擇左側標示變更行數的檔案，才會顯示 diff。" />
         </div>
-      {:else}
-        {#each fileLines as content, i (i)}
-          <FileLine
-            lineNo={i + 1}
-            {content}
-            index={i}
-            selected={selection.includes(i)}
-            commented={commentedKeys.has(`file:${i + 1}`)}
-            onGutterDown={gutterDown}
-            onGutterEnter={gutterEnter}
-          />
-          {#if selection.range && i === selection.range.hi}
-            {@render commentBlock()}
+      {:else if view === "unified"}
+        {#each rows as row, i (i)}
+          {#if row.kind === "header"}
+            <DiffHunk label={row.label} collapsed={collapsedHunks.has(row.hunk)} onToggle={() => toggleHunk(row.hunk)} />
+          {:else}
+            <DiffLine
+              kind={row.line.kind}
+              oldNo={row.line.oldNo}
+              newNo={row.line.newNo}
+              index={row.idx}
+              selected={selection.includes(row.idx)}
+              commented={isCommented(row.line)}
+              onGutterDown={gutterDown}
+              onGutterEnter={gutterEnter}
+            >
+              <InlineText text={row.line.content} segments={inline.get(row.idx)} kind={row.line.kind} />
+            </DiffLine>
+            {#if selection.range && row.idx === selection.range.hi}
+              {@render commentBlock()}
+            {/if}
           {/if}
         {/each}
+      {:else}
+        <div class="split-grid">
+        {#each splitRows as row, i (i)}
+          {#if row.kind === "header"}
+            <div class="split-span">
+              <DiffHunk label={row.label} collapsed={collapsedHunks.has(row.hunk)} onToggle={() => toggleHunk(row.hunk)} />
+            </div>
+          {:else}
+            <DiffLineSplit
+              left={row.left}
+              right={row.right}
+              leftSegments={row.left ? inline.get(row.left.idx) : undefined}
+              rightSegments={row.right ? inline.get(row.right.idx) : undefined}
+              leftCommented={commentedKeys.has(`old:${row.left?.no}`)}
+              rightCommented={commentedKeys.has(`new:${row.right?.no}`)}
+              leftSelected={row.left !== null && selection.includes(row.left.idx)}
+              rightSelected={row.right !== null && selection.includes(row.right.idx)}
+              onGutterDown={gutterDown}
+              onGutterEnter={gutterEnter}
+            />
+            {#if selection.range && splitRowHasIdx(row, selection.range.hi)}
+              <div class="split-span">{@render commentBlock()}</div>
+            {/if}
+          {/if}
+        {/each}
+        </div>
       {/if}
-    {:else if loadingDiff}
-      <div class="diff-body-empty"><EmptyState size="md" icon="loader" title="載入 diff…" /></div>
-    {:else if diffBinary}
-      <div class="diff-body-empty">
-        <EmptyState size="md" icon="binary" title="二進位檔" hint="這個檔案有變更，但不是文字檔，無法逐行顯示 diff，也無法留言。" />
-      </div>
-    {:else if diffHunks.length === 0}
-      <div class="diff-body-empty">
-        <EmptyState size="md" icon="file-check" title="這個檔案沒有變更" hint="選擇左側標示變更行數的檔案，才會顯示 diff。" />
-      </div>
-    {:else if view === "unified"}
-      {#each rows as row, i (i)}
-        {#if row.kind === "header"}
-          <DiffHunk label={row.label} collapsed={collapsedHunks.has(row.hunk)} onToggle={() => toggleHunk(row.hunk)} />
-        {:else}
-          <DiffLine
-            kind={row.line.kind}
-            oldNo={row.line.oldNo}
-            newNo={row.line.newNo}
-            index={row.idx}
-            selected={selection.includes(row.idx)}
-            commented={isCommented(row.line)}
-            onGutterDown={gutterDown}
-            onGutterEnter={gutterEnter}
-          >
-            <InlineText text={row.line.content} segments={inline.get(row.idx)} kind={row.line.kind} />
-          </DiffLine>
-          {#if selection.range && row.idx === selection.range.hi}
-            {@render commentBlock()}
-          {/if}
-        {/if}
-      {/each}
-    {:else}
-      {#each splitRows as row, i (i)}
-        {#if row.kind === "header"}
-          <DiffHunk label={row.label} collapsed={collapsedHunks.has(row.hunk)} onToggle={() => toggleHunk(row.hunk)} />
-        {:else}
-          <DiffLineSplit
-            left={row.left}
-            right={row.right}
-            leftSegments={row.left ? inline.get(row.left.idx) : undefined}
-            rightSegments={row.right ? inline.get(row.right.idx) : undefined}
-            leftCommented={commentedKeys.has(`old:${row.left?.no}`)}
-            rightCommented={commentedKeys.has(`new:${row.right?.no}`)}
-            leftSelected={row.left !== null && selection.includes(row.left.idx)}
-            rightSelected={row.right !== null && selection.includes(row.right.idx)}
-            onGutterDown={gutterDown}
-            onGutterEnter={gutterEnter}
-          />
-          {#if selection.range && splitRowHasIdx(row, selection.range.hi)}
-            {@render commentBlock()}
-          {/if}
-        {/if}
-      {/each}
-    {/if}
+    </div>
   </main>
 {/if}
 
@@ -437,8 +449,31 @@
   .diff-panel {
     flex: 1;
     min-width: 0;
-    overflow-y: auto;
+    overflow: auto;
     background: var(--bg-canvas);
+  }
+
+  /* Without wrapping, every row is as wide as the widest line, so its background runs
+     the full width while the panel scrolls sideways to it. */
+  .diff-body.nowrap {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* One grid for the whole Split view, so each side's column is as wide as its widest
+     line and every row's divider lines up. */
+  .split-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+  }
+
+  /* Both sides as wide as the widest line on either, so the divider stays centred. */
+  .nowrap .split-grid {
+    grid-template-columns: 1fr 1px 1fr;
+  }
+
+  .split-span {
+    grid-column: 1 / -1;
   }
 
   .diff-panel-empty {
@@ -457,6 +492,7 @@
     border-bottom: 1px solid var(--border-default);
     position: sticky;
     top: 0;
+    left: 0;
   }
 
   .file-header-wrap {
@@ -482,6 +518,14 @@
   .thread-avatar {
     flex-shrink: 0;
     padding-top: 2px;
+  }
+
+  /* The thread stays panel-wide and in view while the lines scroll sideways under it. */
+  .nowrap .thread-anchor {
+    position: sticky;
+    left: 0;
+    box-sizing: border-box;
+    width: var(--panel-width);
   }
 
   .thread-body {

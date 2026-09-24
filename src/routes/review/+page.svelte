@@ -212,6 +212,7 @@
       loading={loadingFiles}
       {noRepos}
       hasChanges={changedTree.length > 0}
+      lineWrap={settings.lineWrap}
     />
 
     {#if commentQueue.open}
