@@ -25,12 +25,15 @@ vi.mock('./api', () => ({
 
 vi.mock('$lib/toast/state.svelte', () => ({ toast: vi.fn() }));
 
+vi.mock('./highlight', () => ({ highlightLines: vi.fn(async () => null) }));
+
 type State = typeof import('./state.svelte').reviewState;
 type Api = { [K in keyof typeof import('./api')]: ReturnType<typeof vi.fn> };
 
 let reviewState: State;
 let api: Api;
 let toast: ReturnType<typeof vi.fn>;
+let highlightLines: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -39,6 +42,7 @@ beforeEach(async () => {
   ({ toast } = (await import('$lib/toast/state.svelte')) as unknown as {
     toast: ReturnType<typeof vi.fn>;
   });
+  ({ highlightLines } = (await import('./highlight')) as unknown as { highlightLines: ReturnType<typeof vi.fn> });
   ({ reviewState } = await import('./state.svelte'));
 });
 
@@ -309,6 +313,127 @@ describe('file load', () => {
 
     expect(reviewState.selectedFile).toBeNull();
     expect(reviewState.diffHunks).toEqual([]);
+  });
+});
+
+describe('recent files', () => {
+  const tokens = [[{ text: 'x', color: 'var(--syntax-token-keyword)' }]];
+  const sides = (oldText: string, newText: string): FileDiff => ({ ...diff('@@ one @@'), oldText, newText });
+
+  it('shows a file opened before at once, then what the reload finds', async () => {
+    await openRepo('a', [fileNode('one.ts'), fileNode('two.ts')]);
+    await reviewState.selectFile('two.ts');
+    const reload = deferred<FileDiff>();
+    api.getFileDiff.mockReturnValueOnce(reload.promise);
+
+    const back = reviewState.selectFile('one.ts');
+
+    expect(reviewState.diffHunks.map((h) => h.header)).toEqual(['@@ initial @@']);
+    expect(reviewState.loadingDiff).toBe(false);
+
+    // The hunks come from the two sides, so a changed diff has changed sides too.
+    reload.resolve({ ...diff('@@ changed since @@'), newText: 'changed since' });
+    await back;
+
+    expect(reviewState.diffHunks.map((h) => h.header)).toEqual(['@@ changed since @@']);
+  });
+
+  it('keeps the colours of a diff that has not changed, instead of highlighting it again', async () => {
+    await openRepo('a', [fileNode('one.ts'), fileNode('two.ts')]);
+    api.getFileDiff.mockResolvedValue(sides('old', 'new'));
+    highlightLines.mockResolvedValue(tokens);
+    await reviewState.selectFile('one.ts');
+    await vi.waitFor(() => expect(reviewState.newTokens).toEqual(tokens));
+    await reviewState.selectFile('two.ts');
+    highlightLines.mockClear();
+
+    const reload = deferred<FileDiff>();
+    api.getFileDiff.mockReturnValueOnce(reload.promise);
+    const back = reviewState.selectFile('one.ts');
+
+    expect(reviewState.oldTokens).toEqual(tokens);
+    expect(reviewState.newTokens).toEqual(tokens);
+
+    reload.resolve(sides('old', 'new'));
+    await back;
+
+    expect(reviewState.newTokens).toEqual(tokens);
+    expect(highlightLines).not.toHaveBeenCalled();
+  });
+
+  it('highlights a diff again once it has changed', async () => {
+    await openRepo('a', [fileNode('one.ts'), fileNode('two.ts')]);
+    api.getFileDiff.mockResolvedValue(sides('old', 'new'));
+    highlightLines.mockResolvedValue(tokens);
+    await reviewState.selectFile('one.ts');
+    await vi.waitFor(() => expect(reviewState.newTokens).toEqual(tokens));
+    await reviewState.selectFile('two.ts');
+    highlightLines.mockClear();
+
+    api.getFileDiff.mockResolvedValueOnce(sides('old', 'newer'));
+    await reviewState.selectFile('one.ts');
+
+    expect(highlightLines).toHaveBeenCalledWith('one.ts', 'newer');
+  });
+
+  it('shows File View content opened before at once', async () => {
+    await openRepo('a', [fileNode('one.ts', false), fileNode('two.ts', false)]);
+    await reviewState.selectFile('one.ts');
+    await reviewState.selectFile('two.ts');
+    const reload = deferred<FileContent>();
+    api.getFileContent.mockReturnValueOnce(reload.promise);
+
+    const back = reviewState.selectFile('one.ts');
+
+    expect(reviewState.fileLines).toEqual(['initial']);
+    expect(reviewState.loadingFile).toBe(false);
+
+    reload.resolve(content('changed since'));
+    await back;
+
+    expect(reviewState.fileLines).toEqual(['changed since']);
+  });
+
+  it('drops what it kept for a file that fails to reload', async () => {
+    await openRepo('a', [fileNode('one.ts'), fileNode('two.ts')]);
+    await reviewState.selectFile('two.ts');
+    api.getFileDiff.mockRejectedValueOnce(new Error('one.ts is gone'));
+
+    await reviewState.selectFile('one.ts');
+
+    expect(reviewState.diffHunks).toEqual([]);
+    expect(toast).toHaveBeenCalled();
+  });
+
+  it('never shows a file kept from another Diff Mode', async () => {
+    await openRepo('a', [fileNode('one.ts')]);
+    api.getFileTree.mockResolvedValueOnce([fileNode('one.ts')]);
+    const reload = deferred<FileDiff>();
+    api.getFileDiff.mockReturnValueOnce(reload.promise);
+
+    const switched = reviewState.setDiffMode('staged');
+    await vi.waitFor(() => expect(api.getFileDiff).toHaveBeenCalled());
+
+    expect(reviewState.diffHunks).toEqual([]);
+    expect(reviewState.loadingDiff).toBe(true);
+
+    reload.resolve(diff('@@ staged @@'));
+    await switched;
+  });
+
+  it('keeps only the last few files', async () => {
+    const paths = ['f0.ts', 'f1.ts', 'f2.ts', 'f3.ts', 'f4.ts', 'f5.ts'];
+    await openRepo('a', paths.map((p) => fileNode(p)));
+    for (const p of paths.slice(1)) await reviewState.selectFile(p);
+
+    const reload = deferred<FileDiff>();
+    api.getFileDiff.mockReturnValueOnce(reload.promise);
+    const back = reviewState.selectFile('f0.ts');
+
+    expect(reviewState.diffHunks).toEqual([]);
+
+    reload.resolve(diff('@@ f0 @@'));
+    await back;
   });
 });
 

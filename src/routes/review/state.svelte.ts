@@ -14,9 +14,18 @@ import {
 } from './api';
 import { fileAfterReload, findFileNode } from './helpers';
 import { highlightLines, type SyntaxToken } from './highlight';
-import type { Branch, DiffHunk, DiffMode, DiffSpec, Repo, TreeNode } from './types';
+import type { Branch, DiffHunk, DiffMode, DiffSpec, FileContent, FileDiff, Repo, TreeNode } from './types';
 
 export type ViewMode = 'unified' | 'split';
+
+// A file the reviewer opened recently, kept so going back to it paints at once and skips
+// re-highlighting when it hasn't changed. `tokens` stays unset until highlighting lands.
+type RecentFile =
+  | { view: 'diff'; diff: FileDiff; tokens?: [SyntaxToken[][] | null, SyntaxToken[][] | null] }
+  | { view: 'file'; content: FileContent; tokens?: SyntaxToken[][] | null };
+
+// Each one holds both sides of a file and their tokens, so only the last few stay.
+const RECENT_FILES = 5;
 
 class ReviewState {
   repos = $state<Repo[]>([]);
@@ -66,6 +75,10 @@ class ReviewState {
   #branchSeq = 0;
   #treeSeq = 0;
   #diffSeq = 0;
+
+  // Most recently opened last. Keyed by the spec as well as the path, so a file seen in
+  // another Diff Mode or against another Base Branch is never shown for this one.
+  #recent = new Map<string, RecentFile>();
 
   repo = $derived(this.repos.find((r) => r.id === this.repoId) ?? null);
 
@@ -249,48 +262,103 @@ class ReviewState {
     this.fileLines = [];
     this.fileBinary = false;
     this.#clearTokens();
-    if (view === 'diff') await this.#loadDiff(spec, path, seq);
-    else await this.#loadFileContent(spec.repoId, path, seq);
+    const key = JSON.stringify([spec, view, path]);
+    if (view === 'diff') await this.#loadDiff(spec, path, key, seq);
+    else await this.#loadFileContent(spec.repoId, path, key, seq);
   }
 
-  async #loadDiff(spec: DiffSpec, path: string, seq: number) {
-    this.loadingDiff = true;
+  // A file opened recently shows what it had straight away, and is read off disk again
+  // all the same: an agent may have changed it since, and the reviewer sees that without
+  // a Refresh, as before there was anything kept.
+  async #loadDiff(spec: DiffSpec, path: string, key: string, seq: number) {
+    const recent = this.#recent.get(key);
+    const shown = recent?.view === 'diff' ? recent : undefined;
+    if (shown) {
+      this.diffHunks = shown.diff.hunks;
+      this.diffBinary = shown.diff.binary;
+      if (shown.tokens) [this.oldTokens, this.newTokens] = shown.tokens;
+    }
+    this.loadingDiff = !shown;
     try {
       const diff = await getFileDiff(spec, path);
       if (seq !== this.#diffSeq) return;
+      if (shown && sameDiff(shown.diff, diff)) {
+        this.#remember(key, shown);
+        if (shown.tokens === undefined) void this.#highlightDiff(path, shown, seq);
+        return;
+      }
+      const entry: RecentFile = { view: 'diff', diff };
+      this.#remember(key, entry);
       this.diffHunks = diff.hunks;
       this.diffBinary = diff.binary;
-      void this.#highlightDiff(path, diff.oldText, diff.newText, seq);
+      this.#clearTokens();
+      void this.#highlightDiff(path, entry, seq);
     } catch (e) {
+      this.#recent.delete(key);
       if (seq !== this.#diffSeq) return;
+      // What was kept is no longer known to be what's on disk.
+      this.diffHunks = [];
+      this.diffBinary = false;
+      this.#clearTokens();
       toast(`載入 diff 失敗：${e}`, { variant: 'danger' });
     } finally {
       if (seq === this.#diffSeq) this.loadingDiff = false;
     }
   }
 
-  async #loadFileContent(repoId: string, path: string, seq: number) {
-    this.loadingFile = true;
+  async #loadFileContent(repoId: string, path: string, key: string, seq: number) {
+    const recent = this.#recent.get(key);
+    const shown = recent?.view === 'file' ? recent : undefined;
+    if (shown) {
+      this.fileLines = shown.content.lines;
+      this.fileBinary = shown.content.binary;
+      if (shown.tokens !== undefined) this.fileTokens = shown.tokens;
+    }
+    this.loadingFile = !shown;
     try {
       const content = await getFileContent(repoId, path);
       if (seq !== this.#diffSeq) return;
+      if (shown && sameContent(shown.content, content)) {
+        this.#remember(key, shown);
+        if (shown.tokens === undefined) void this.#highlightFile(path, shown, seq);
+        return;
+      }
+      const entry: RecentFile = { view: 'file', content };
+      this.#remember(key, entry);
       this.fileLines = content.lines;
       this.fileBinary = content.binary;
-      void this.#highlightFile(path, content.lines, seq);
+      this.#clearTokens();
+      void this.#highlightFile(path, entry, seq);
     } catch (e) {
+      this.#recent.delete(key);
       if (seq !== this.#diffSeq) return;
+      this.fileLines = [];
+      this.fileBinary = false;
+      this.#clearTokens();
       toast(`載入檔案內容失敗：${e}`, { variant: 'danger' });
     } finally {
       if (seq === this.#diffSeq) this.loadingFile = false;
     }
   }
 
+  #remember(key: string, entry: RecentFile) {
+    this.#recent.delete(key);
+    this.#recent.set(key, entry);
+    if (this.#recent.size > RECENT_FILES) this.#recent.delete(this.#recent.keys().next().value!);
+  }
+
   // Colours land after the lines are already on screen, so a grammar loading for the
   // first time never holds up the diff. A file that fails to highlight stays plain
   // text: nothing the reviewer needs is missing, so there is nothing to tell them.
-  async #highlightDiff(path: string, oldText: string, newText: string, seq: number) {
+  // The colours are kept with the file even once the reviewer has moved on, so going
+  // back to it doesn't highlight it again.
+  async #highlightDiff(path: string, entry: RecentFile & { view: 'diff' }, seq: number) {
     try {
-      const [oldTokens, newTokens] = await Promise.all([highlightLines(path, oldText), highlightLines(path, newText)]);
+      const [oldTokens, newTokens] = await Promise.all([
+        highlightLines(path, entry.diff.oldText),
+        highlightLines(path, entry.diff.newText),
+      ]);
+      entry.tokens = [oldTokens, newTokens];
       if (seq !== this.#diffSeq) return;
       this.oldTokens = oldTokens;
       this.newTokens = newTokens;
@@ -299,9 +367,10 @@ class ReviewState {
     }
   }
 
-  async #highlightFile(path: string, lines: string[], seq: number) {
+  async #highlightFile(path: string, entry: RecentFile & { view: 'file' }, seq: number) {
     try {
-      const tokens = await highlightLines(path, lines.join('\n'));
+      const tokens = await highlightLines(path, entry.content.lines.join('\n'));
+      entry.tokens = tokens;
       if (seq !== this.#diffSeq) return;
       this.fileTokens = tokens;
     } catch {
@@ -370,3 +439,12 @@ class ReviewState {
 }
 
 export const reviewState = new ReviewState();
+
+// The hunks come from the two sides, so the same sides mean the same diff.
+function sameDiff(a: FileDiff, b: FileDiff) {
+  return a.binary === b.binary && a.oldText === b.oldText && a.newText === b.newText;
+}
+
+function sameContent(a: FileContent, b: FileContent) {
+  return a.binary === b.binary && a.lines.length === b.lines.length && a.lines.every((line, i) => line === b.lines[i]);
+}
