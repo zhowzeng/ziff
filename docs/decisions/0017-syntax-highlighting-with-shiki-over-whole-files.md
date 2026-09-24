@@ -15,10 +15,12 @@ colours and the within-line change marks (`inlineSegments`) are laid over each o
 which cuts a line wherever either one changes.
 
 Highlighting lands after the plain lines are on screen, so a grammar loading for the first time
-never holds up the diff. A file with no grammar, over 500,000 characters, or failing to highlight
-stays plain text. Grammars are split into separate chunks and loaded on first use. The build output
-grows by about 8 MB of grammar chunks, and the review page's own chunk by about 200 KB (Shiki core
-and the JS regex engine).
+never holds up the diff. Shiki runs in a Web Worker (`highlight.worker.ts`): tokenizing takes
+seconds on a file a few thousand lines long (a 3,325-line TypeScript file froze the window for
+2.3 s on the main thread), and in the worker the window keeps scrolling meanwhile. A file with no
+grammar, over 500,000 characters, or failing to highlight stays plain text. Grammars are split into
+separate chunks and loaded on first use. The build output grows by about 8 MB of grammar chunks,
+all of them the worker's; the review page's own chunk carries no Shiki.
 
 ## Considered Options
 
