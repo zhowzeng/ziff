@@ -233,3 +233,76 @@ export function pairHunkLines(lines: IndexedLine[]): { left: SplitSide; right: S
   }
   return result;
 }
+
+// A run of one line's text, marked when it is part of what changed within the line —
+// the darker highlight GitHub puts inside a changed line.
+export type InlineSegment = { text: string; changed: boolean };
+
+// Words, runs of whitespace, and single punctuation marks: the units a within-line diff
+// matches, so `foo(bar)` -> `foo(baz)` marks `bar`, not the whole call.
+const INLINE_TOKEN = /[\p{L}\p{N}_]+|\s+|[^\p{L}\p{N}_\s]/gu;
+
+// Past this many token pairs a line is too long to be worth the quadratic diff below.
+const MAX_INLINE_CELLS = 100_000;
+
+// What changed between a del line and the add line paired with it, as segments of each.
+// Null when there is nothing worth marking: the lines share no word at all (a rewrite,
+// where marking every word says nothing the line colour doesn't), or are too long.
+export function inlineDiff(oldText: string, newText: string): { old: InlineSegment[]; new: InlineSegment[] } | null {
+  const a = oldText.match(INLINE_TOKEN) ?? [];
+  const b = newText.match(INLINE_TOKEN) ?? [];
+  if (a.length * b.length > MAX_INLINE_CELLS) return null;
+
+  // Longest common subsequence of tokens, filled from the end so the walk below can go
+  // forward.
+  const w = b.length + 1;
+  const lcs = new Uint32Array((a.length + 1) * w);
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      lcs[i * w + j] =
+        a[i] === b[j] ? lcs[(i + 1) * w + j + 1] + 1 : Math.max(lcs[(i + 1) * w + j], lcs[i * w + j + 1]);
+    }
+  }
+  const aChanged = a.map(() => true);
+  const bChanged = b.map(() => true);
+  let sharesWord = false;
+  for (let i = 0, j = 0; i < a.length && j < b.length; ) {
+    if (a[i] === b[j]) {
+      aChanged[i] = bChanged[j] = false;
+      if (a[i].trim()) sharesWord = true;
+      i++;
+      j++;
+    } else if (lcs[(i + 1) * w + j] >= lcs[i * w + j + 1]) i++;
+    else j++;
+  }
+  if (!sharesWord) return null;
+  return { old: segments(a, aChanged), new: segments(b, bChanged) };
+}
+
+function segments(tokens: string[], changed: boolean[]): InlineSegment[] {
+  const out: InlineSegment[] = [];
+  tokens.forEach((text, i) => {
+    // Whitespace between two changed words is marked with them, so `only the` reads as
+    // one change rather than two with a gap.
+    const mark = changed[i] || (!text.trim() && changed[i - 1] === true && changed[i + 1] === true);
+    const last = out[out.length - 1];
+    if (last && last.changed === mark) last.text += text;
+    else out.push({ text, changed: mark });
+  });
+  return out;
+}
+
+// The within-line segments of every del/add line that has a counterpart, keyed by idx.
+// Lines pair up the same way Split view puts them side by side (pairHunkLines): the
+// n-th del of a run with the n-th add after it.
+export function inlineSegments(lines: IndexedLine[]): Map<number, InlineSegment[]> {
+  const out = new Map<number, InlineSegment[]>();
+  for (const { left, right } of pairHunkLines(lines)) {
+    if (left?.kind !== 'del' || right?.kind !== 'add') continue;
+    const diff = inlineDiff(left.text, right.text);
+    if (!diff) continue;
+    out.set(left.idx, diff.old);
+    out.set(right.idx, diff.new);
+  }
+  return out;
+}

@@ -1,5 +1,6 @@
 <script>
   import Icon from '$lib/components/Icon.svelte';
+  import InlineText from './InlineText.svelte';
 
   const kinds = {
     add: { bg: 'var(--diff-add-bg)', bar: 'var(--diff-add-bg-strong)', text: 'var(--diff-add-text)', prefix: '+' },
@@ -15,6 +16,8 @@
    * @typedef {Object} Props
    * @property {Side} left
    * @property {Side} right
+   * @property {import('../helpers').InlineSegment[]} [leftSegments]
+   * @property {import('../helpers').InlineSegment[]} [rightSegments]
    * @property {boolean} [leftCommented]
    * @property {boolean} [rightCommented]
    * @property {boolean} [leftSelected]
@@ -27,6 +30,8 @@
   let {
     left,
     right,
+    leftSegments,
+    rightSegments,
     leftCommented = false,
     rightCommented = false,
     leftSelected = false,
@@ -59,7 +64,7 @@
       {/if}
     </span>
     <span style={`width:14px;color:${left ? kLeft.text : 'transparent'};user-select:none;flex-shrink:0`}>{left ? kLeft.prefix : ''}</span>
-    <span style={`color:${left ? kLeft.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{left ? left.text : ''}</span>
+    <span style={`color:${left ? kLeft.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{#if left}<InlineText text={left.text ?? ''} segments={leftSegments} kind={left.kind || 'context'} />{/if}</span>
   </div>
   <div style="width:1px;background:var(--border-muted);flex-shrink:0"></div>
   <div
@@ -92,6 +97,6 @@
       {/if}
     </span>
     <span style={`width:14px;color:${right ? kRight.text : 'transparent'};user-select:none;flex-shrink:0`}>{right ? kRight.prefix : ''}</span>
-    <span style={`color:${right ? kRight.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{right ? right.text : ''}</span>
+    <span style={`color:${right ? kRight.text : 'transparent'};white-space:pre;overflow:hidden;text-overflow:ellipsis`}>{#if right}<InlineText text={right.text ?? ''} segments={rightSegments} kind={right.kind || 'context'} />{/if}</span>
   </div>
 </div>

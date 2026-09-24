@@ -4,6 +4,7 @@
   import DiffLineSplit from "./DiffLineSplit.svelte";
   import FileHeader from "./FileHeader.svelte";
   import FileLine from "./FileLine.svelte";
+  import InlineText from "./InlineText.svelte";
   import CommentThread from "./CommentThread.svelte";
   import Avatar from "$lib/components/Avatar.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
@@ -17,10 +18,12 @@
     flattenHunks,
     formatForAgent,
     formatTime,
+    inlineSegments,
     lineRange,
     pairHunkLines,
     type FlatLine,
     type IndexedLine,
+    type InlineSegment,
   } from "../helpers";
   import type { ViewMode } from "../state.svelte";
   import type { DiffHunk as DiffHunkData, DiffLine as DiffLineData, DiffMode } from "../types";
@@ -136,6 +139,15 @@
     const groups = diffHunks.map((h) => ({ header: h.header, lines: [] as FlatLine[] }));
     for (const f of flatLines) groups[f.hunk].lines.push(f);
     return groups;
+  });
+  // What changed within each paired del/add line, keyed by idx, for both views.
+  let inline = $derived.by(() => {
+    const out = new Map<number, InlineSegment[]>();
+    for (const g of hunkGroups) {
+      const numbered: IndexedLine[] = g.lines.map((f) => ({ ...f.line, idx: f.idx }));
+      for (const [idx, segs] of inlineSegments(numbered)) out.set(idx, segs);
+    }
+    return out;
   });
   // Which hunks are collapsed, kept against the diff they were collapsed in: loading
   // another diff replaces `flatLines`, and everything is expanded again with no effect
@@ -388,7 +400,7 @@
             onGutterDown={gutterDown}
             onGutterEnter={gutterEnter}
           >
-            {row.line.content}
+            <InlineText text={row.line.content} segments={inline.get(row.idx)} kind={row.line.kind} />
           </DiffLine>
           {#if selection.range && row.idx === selection.range.hi}
             {@render commentBlock()}
@@ -403,6 +415,8 @@
           <DiffLineSplit
             left={row.left}
             right={row.right}
+            leftSegments={row.left ? inline.get(row.left.idx) : undefined}
+            rightSegments={row.right ? inline.get(row.right.idx) : undefined}
             leftCommented={commentedKeys.has(`old:${row.left?.no}`)}
             rightCommented={commentedKeys.has(`new:${row.right?.no}`)}
             leftSelected={row.left !== null && selection.includes(row.left.idx)}
