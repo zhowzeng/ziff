@@ -209,6 +209,9 @@
       fileLines={reviewState.fileLines}
       fileBinary={reviewState.fileBinary}
       loadingFile={reviewState.loadingFile}
+      oldTokens={reviewState.oldTokens}
+      newTokens={reviewState.newTokens}
+      fileTokens={reviewState.fileTokens}
       loading={loadingFiles}
       {noRepos}
       hasChanges={changedTree.length > 0}

@@ -13,6 +13,7 @@ import {
   removeRepo as removeRepoCommand,
 } from './api';
 import { fileAfterReload, findFileNode } from './helpers';
+import { highlightLines, type SyntaxToken } from './highlight';
 import type { Branch, DiffHunk, DiffMode, DiffSpec, Repo, TreeNode } from './types';
 
 export type ViewMode = 'unified' | 'split';
@@ -44,6 +45,12 @@ class ReviewState {
   diffBinary = $state(false);
   fileLines = $state<string[]>([]);
   fileBinary = $state(false);
+  // Syntax colours for each side of the diff and for File View, by line number - 1.
+  // Null until highlighting lands, and for a file with no grammar — the lines then
+  // show as plain text. Raw: replaced whole, and large enough that proxying costs.
+  oldTokens = $state.raw<SyntaxToken[][] | null>(null);
+  newTokens = $state.raw<SyntaxToken[][] | null>(null);
+  fileTokens = $state.raw<SyntaxToken[][] | null>(null);
 
   loadingRepos = $state(false);
   loadingBranches = $state(false);
@@ -241,6 +248,7 @@ class ReviewState {
     this.diffBinary = false;
     this.fileLines = [];
     this.fileBinary = false;
+    this.#clearTokens();
     if (view === 'diff') await this.#loadDiff(spec, path, seq);
     else await this.#loadFileContent(spec.repoId, path, seq);
   }
@@ -252,6 +260,7 @@ class ReviewState {
       if (seq !== this.#diffSeq) return;
       this.diffHunks = diff.hunks;
       this.diffBinary = diff.binary;
+      void this.#highlightDiff(path, diff.oldText, diff.newText, seq);
     } catch (e) {
       if (seq !== this.#diffSeq) return;
       toast(`載入 diff 失敗：${e}`, { variant: 'danger' });
@@ -267,12 +276,43 @@ class ReviewState {
       if (seq !== this.#diffSeq) return;
       this.fileLines = content.lines;
       this.fileBinary = content.binary;
+      void this.#highlightFile(path, content.lines, seq);
     } catch (e) {
       if (seq !== this.#diffSeq) return;
       toast(`載入檔案內容失敗：${e}`, { variant: 'danger' });
     } finally {
       if (seq === this.#diffSeq) this.loadingFile = false;
     }
+  }
+
+  // Colours land after the lines are already on screen, so a grammar loading for the
+  // first time never holds up the diff. A file that fails to highlight stays plain
+  // text: nothing the reviewer needs is missing, so there is nothing to tell them.
+  async #highlightDiff(path: string, oldText: string, newText: string, seq: number) {
+    try {
+      const [oldTokens, newTokens] = await Promise.all([highlightLines(path, oldText), highlightLines(path, newText)]);
+      if (seq !== this.#diffSeq) return;
+      this.oldTokens = oldTokens;
+      this.newTokens = newTokens;
+    } catch {
+      // Plain text it is.
+    }
+  }
+
+  async #highlightFile(path: string, lines: string[], seq: number) {
+    try {
+      const tokens = await highlightLines(path, lines.join('\n'));
+      if (seq !== this.#diffSeq) return;
+      this.fileTokens = tokens;
+    } catch {
+      // Plain text it is.
+    }
+  }
+
+  #clearTokens() {
+    this.oldTokens = null;
+    this.newTokens = null;
+    this.fileTokens = null;
   }
 
   #clearSelection() {
@@ -282,6 +322,7 @@ class ReviewState {
     this.diffBinary = false;
     this.fileLines = [];
     this.fileBinary = false;
+    this.#clearTokens();
   }
 
   async fetchRemoteBranch() {
