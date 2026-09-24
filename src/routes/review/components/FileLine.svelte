@@ -1,5 +1,6 @@
 <script>
   import Icon from '$lib/components/Icon.svelte';
+  import InlineText from './InlineText.svelte';
 
   /**
    * One line of a file shown in File View: worktree content with its own line number
@@ -8,6 +9,7 @@
    * @typedef {Object} Props
    * @property {number} lineNo
    * @property {string} content
+   * @property {import('../highlight').SyntaxToken[]} [tokens]
    * @property {number} index
    * @property {boolean} [selected]
    * @property {boolean} [commented]
@@ -16,7 +18,7 @@
    */
 
   /** @type {Props} */
-  let { lineNo, content, index, selected = false, commented = false, onGutterDown, onGutterEnter } = $props();
+  let { lineNo, content, tokens, index, selected = false, commented = false, onGutterDown, onGutterEnter } = $props();
 
   let hover = $state(false);
 </script>
@@ -53,5 +55,5 @@
   </span>
   <!-- Stands in for the diff's +/- column so File View content lines up with a diff's. -->
   <span style="width:14px;flex-shrink:0"></span>
-  <span style="color:var(--text-primary);white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0">{content}</span>
+  <span style="color:var(--text-primary);white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0"><InlineText text={content} {tokens} kind="context" /></span>
 </div>

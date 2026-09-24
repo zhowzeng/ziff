@@ -44,6 +44,8 @@ pub fn file_diff(git: &gix::Repository, file: &ChangedFile) -> Result<FileDiff, 
         return Ok(FileDiff {
             hunks: Vec::new(),
             binary: true,
+            old_text: String::new(),
+            new_text: String::new(),
         });
     };
     let input = InternedInput::new(old, new);
@@ -53,6 +55,8 @@ pub fn file_diff(git: &gix::Repository, file: &ChangedFile) -> Result<FileDiff, 
     Ok(FileDiff {
         hunks: hunks(&input, &diff),
         binary: false,
+        old_text: old.to_string(),
+        new_text: new.to_string(),
     })
 }
 
@@ -520,5 +524,20 @@ mod tests {
 
         let hunks = hunks_of(dir.path(), &spec(DiffMode::Staged, None), "moved.txt");
         assert_eq!(as_unified(&hunks), "@@ -2,7 +2,7 @@\n line 2\n line 3\n line 4\n-line 5\n+EDITED\n line 6\n line 7\n line 8\n");
+    }
+
+    /// The frontend highlights each side whole, so both come back in full -- not just
+    /// the lines the hunks show.
+    #[test]
+    fn a_file_diff_carries_both_sides_in_full() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        repo_with_a_commit(dir.path());
+        write(dir.path(), "file.txt", "one\nTWO\nthree\n");
+
+        let git_repo = open(dir.path());
+        let files = changed_files(&git_repo, &spec(DiffMode::Unstaged, None)).expect("ok");
+        let diff = file_diff(&git_repo, &files[0]).expect("file diff");
+        assert_eq!(diff.old_text, "one\ntwo\nthree\n");
+        assert_eq!(diff.new_text, "one\nTWO\nthree\n");
     }
 }

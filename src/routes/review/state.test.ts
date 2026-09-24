@@ -66,7 +66,7 @@ const fileNode = (path: string, changed = true): TreeNode => ({
   renamedFrom: null,
 });
 
-const diff = (header: string): FileDiff => ({ hunks: [{ header, lines: [] }], binary: false });
+const diff = (header: string): FileDiff => ({ hunks: [{ header, lines: [] }], binary: false, oldText: '', newText: '' });
 
 const content = (line: string): FileContent => ({ lines: [line], binary: false });
 

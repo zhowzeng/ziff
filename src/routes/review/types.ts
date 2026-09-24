@@ -67,6 +67,9 @@ export interface FileDiff {
   hunks: DiffHunk[];
   /** A file with no lines to diff, so the diff view says so instead of showing nothing. */
   binary: boolean;
+  /** Both sides in full, highlighted whole rather than hunk by hunk. Empty when binary. */
+  oldText: string;
+  newText: string;
 }
 
 export interface FileContent {

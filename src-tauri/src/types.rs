@@ -108,6 +108,11 @@ pub struct FileDiff {
     /// A file neither side can decode as UTF-8, so there are no lines to diff and the
     /// diff view says so rather than showing an empty diff for a file that did change.
     pub binary: bool,
+    /// Both sides in full, which the frontend highlights whole: a hunk that starts
+    /// inside a block comment or string can't be highlighted from its own lines alone.
+    /// Empty when `binary`.
+    pub old_text: String,
+    pub new_text: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -34,6 +34,8 @@ fn read_file_diff(
         None => Ok(FileDiff {
             hunks: Vec::new(),
             binary: false,
+            old_text: String::new(),
+            new_text: String::new(),
         }),
     }
 }

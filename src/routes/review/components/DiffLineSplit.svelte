@@ -18,6 +18,8 @@
    * @property {Side} right
    * @property {import('../helpers').InlineSegment[]} [leftSegments]
    * @property {import('../helpers').InlineSegment[]} [rightSegments]
+   * @property {import('../highlight').SyntaxToken[]} [leftTokens]
+   * @property {import('../highlight').SyntaxToken[]} [rightTokens]
    * @property {boolean} [leftCommented]
    * @property {boolean} [rightCommented]
    * @property {boolean} [leftSelected]
@@ -32,6 +34,8 @@
     right,
     leftSegments,
     rightSegments,
+    leftTokens,
+    rightTokens,
     leftCommented = false,
     rightCommented = false,
     leftSelected = false,
@@ -65,7 +69,7 @@
       {/if}
     </span>
     <span style={`width:14px;color:${left ? kLeft.text : 'transparent'};user-select:none;flex-shrink:0`}>{left ? kLeft.prefix : ''}</span>
-    <span style={`color:${left ? kLeft.text : 'transparent'};white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0`}>{#if left}<InlineText text={left.text ?? ''} segments={leftSegments} kind={left.kind || 'context'} />{/if}</span>
+    <span style={`color:${left ? kLeft.text : 'transparent'};white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0`}>{#if left}<InlineText text={left.text ?? ''} segments={leftSegments} tokens={leftTokens} kind={left.kind || 'context'} />{/if}</span>
   </div>
   <div style="width:1px;background:var(--border-muted);flex-shrink:0"></div>
   <div
@@ -98,6 +102,6 @@
       {/if}
     </span>
     <span style={`width:14px;color:${right ? kRight.text : 'transparent'};user-select:none;flex-shrink:0`}>{right ? kRight.prefix : ''}</span>
-    <span style={`color:${right ? kRight.text : 'transparent'};white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0`}>{#if right}<InlineText text={right.text ?? ''} segments={rightSegments} kind={right.kind || 'context'} />{/if}</span>
+    <span style={`color:${right ? kRight.text : 'transparent'};white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0`}>{#if right}<InlineText text={right.text ?? ''} segments={rightSegments} tokens={rightTokens} kind={right.kind || 'context'} />{/if}</span>
   </div>
 </div>

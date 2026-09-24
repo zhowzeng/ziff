@@ -25,6 +25,7 @@
     type IndexedLine,
     type InlineSegment,
   } from "../helpers";
+  import type { SyntaxToken } from "../highlight";
   import type { ViewMode } from "../state.svelte";
   import type { DiffHunk as DiffHunkData, DiffLine as DiffLineData, DiffMode } from "../types";
 
@@ -51,6 +52,11 @@
     fileLines: string[];
     fileBinary: boolean;
     loadingFile: boolean;
+    /** Syntax colours by line number - 1: the diff's old and new sides, and File View's
+     *  file. Null while highlighting is still on its way, or for a file it can't do. */
+    oldTokens: SyntaxToken[][] | null;
+    newTokens: SyntaxToken[][] | null;
+    fileTokens: SyntaxToken[][] | null;
     /** The repo/branch/tree load, which has to finish before any of this means anything. */
     loading: boolean;
     noRepos: boolean;
@@ -72,6 +78,9 @@
     fileLines,
     fileBinary,
     loadingFile,
+    oldTokens,
+    newTokens,
+    fileTokens,
     loading,
     noRepos,
     hasChanges,
@@ -228,6 +237,17 @@
   // here is scoped to the Repo being reviewed.
   let commentedKeys = $derived(commentQueue.lineKeys(repoId, selectedFile ?? ""));
 
+  // A del line exists only on the old side; every other line is coloured from the new.
+  function lineTokens(line: DiffLineData) {
+    return line.kind === "del" ? oldTokensAt(line.oldNo) : newTokensAt(line.newNo);
+  }
+  function oldTokensAt(no: number | null | undefined) {
+    return no ? oldTokens?.[no - 1] : undefined;
+  }
+  function newTokensAt(no: number | null | undefined) {
+    return no ? newTokens?.[no - 1] : undefined;
+  }
+
   function isCommented(line: DiffLineData) {
     return line.newNo !== null && commentedKeys.has(`new:${line.newNo}`);
   }
@@ -371,6 +391,7 @@
             <FileLine
               lineNo={i + 1}
               {content}
+              tokens={fileTokens?.[i]}
               index={i}
               selected={selection.includes(i)}
               commented={commentedKeys.has(`file:${i + 1}`)}
@@ -407,7 +428,7 @@
               onGutterDown={gutterDown}
               onGutterEnter={gutterEnter}
             >
-              <InlineText text={row.line.content} segments={inline.get(row.idx)} kind={row.line.kind} />
+              <InlineText text={row.line.content} segments={inline.get(row.idx)} tokens={lineTokens(row.line)} kind={row.line.kind} />
             </DiffLine>
             {#if selection.range && row.idx === selection.range.hi}
               {@render commentBlock()}
@@ -427,6 +448,8 @@
               right={row.right}
               leftSegments={row.left ? inline.get(row.left.idx) : undefined}
               rightSegments={row.right ? inline.get(row.right.idx) : undefined}
+              leftTokens={oldTokensAt(row.left?.no)}
+              rightTokens={newTokensAt(row.right?.no)}
               leftCommented={commentedKeys.has(`old:${row.left?.no}`)}
               rightCommented={commentedKeys.has(`new:${row.right?.no}`)}
               leftSelected={row.left !== null && selection.includes(row.left.idx)}
