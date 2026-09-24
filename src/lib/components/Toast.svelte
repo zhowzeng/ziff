@@ -4,6 +4,7 @@
   import IconButton from './IconButton.svelte';
   import Button from './Button.svelte';
 
+  /** @type {Record<string, { icon: import('./Icon.svelte').IconName, color: string }>} */
   const variants = {
     default: { icon: 'info', color: 'var(--text-secondary)' },
     success: { icon: 'circle-check', color: 'var(--success-fg)' },
