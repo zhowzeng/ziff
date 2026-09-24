@@ -312,6 +312,12 @@ describe('inlineDiff', () => {
     expect(diff && marked(diff.new)).toEqual(['only the']);
   });
 
+  it('lines up a word with its own copy, not a later one that shares only whitespace', () => {
+    const diff = inlineDiff('overwrite in input_files. Read', 'listed in input_files are copied in. Read');
+    expect(diff && marked(diff.old)).toEqual(['overwrite']);
+    expect(diff && marked(diff.new)).toEqual(['listed', 'are copied in']);
+  });
+
   it('marks nothing when the lines share no word', () => {
     expect(inlineDiff('alpha beta', 'gamma delta')).toBeNull();
   });

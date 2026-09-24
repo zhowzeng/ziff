@@ -242,7 +242,7 @@ export type InlineSegment = { text: string; changed: boolean };
 // matches, so `foo(bar)` -> `foo(baz)` marks `bar`, not the whole call.
 const INLINE_TOKEN = /[\p{L}\p{N}_]+|\s+|[^\p{L}\p{N}_\s]/gu;
 
-// Past this many token pairs a line is too long to be worth the quadratic diff below.
+// Past this many word pairs a line is too long to be worth the quadratic diff below.
 const MAX_INLINE_CELLS = 100_000;
 
 // What changed between a del line and the add line paired with it, as segments of each.
@@ -251,25 +251,31 @@ const MAX_INLINE_CELLS = 100_000;
 export function inlineDiff(oldText: string, newText: string): { old: InlineSegment[]; new: InlineSegment[] } | null {
   const a = oldText.match(INLINE_TOKEN) ?? [];
   const b = newText.match(INLINE_TOKEN) ?? [];
-  if (a.length * b.length > MAX_INLINE_CELLS) return null;
 
-  // Longest common subsequence of tokens, filled from the end so the walk below can go
-  // forward.
-  const w = b.length + 1;
-  const lcs = new Uint32Array((a.length + 1) * w);
-  for (let i = a.length - 1; i >= 0; i--) {
-    for (let j = b.length - 1; j >= 0; j--) {
+  // Only words and punctuation are matched: whitespace is everywhere, so letting it
+  // match pulls a word into line with a copy of itself further along. Whitespace takes
+  // its marking from the words around it instead (see `segments`).
+  const aw = a.flatMap((t, i) => (t.trim() ? [i] : []));
+  const bw = b.flatMap((t, i) => (t.trim() ? [i] : []));
+  if (aw.length * bw.length > MAX_INLINE_CELLS) return null;
+
+  // Longest common subsequence of those tokens, filled from the end so the walk below
+  // can go forward.
+  const w = bw.length + 1;
+  const lcs = new Uint32Array((aw.length + 1) * w);
+  for (let i = aw.length - 1; i >= 0; i--) {
+    for (let j = bw.length - 1; j >= 0; j--) {
       lcs[i * w + j] =
-        a[i] === b[j] ? lcs[(i + 1) * w + j + 1] + 1 : Math.max(lcs[(i + 1) * w + j], lcs[i * w + j + 1]);
+        a[aw[i]] === b[bw[j]] ? lcs[(i + 1) * w + j + 1] + 1 : Math.max(lcs[(i + 1) * w + j], lcs[i * w + j + 1]);
     }
   }
-  const aChanged = a.map(() => true);
-  const bChanged = b.map(() => true);
+  const aChanged = a.map((t) => t.trim() !== '');
+  const bChanged = b.map((t) => t.trim() !== '');
   let sharesWord = false;
-  for (let i = 0, j = 0; i < a.length && j < b.length; ) {
-    if (a[i] === b[j]) {
-      aChanged[i] = bChanged[j] = false;
-      if (a[i].trim()) sharesWord = true;
+  for (let i = 0, j = 0; i < aw.length && j < bw.length; ) {
+    if (a[aw[i]] === b[bw[j]]) {
+      aChanged[aw[i]] = bChanged[bw[j]] = false;
+      sharesWord = true;
       i++;
       j++;
     } else if (lcs[(i + 1) * w + j] >= lcs[i * w + j + 1]) i++;
