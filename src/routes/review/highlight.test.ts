@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { highlightLines, languageOf, paintLine } from './highlight';
+import { paintLine } from './highlight';
+import { languageOf, tokenize } from './tokenize';
 
 describe('languageOf', () => {
   it('goes by the extension', () => {
@@ -18,15 +19,15 @@ describe('languageOf', () => {
   });
 });
 
-describe('highlightLines', () => {
+describe('tokenize', () => {
   it('colours a line from what came before it, not just the line itself', async () => {
-    const lines = await highlightLines('a.ts', 'const a = 1; /* start\nstill a comment\nend */ let b;');
+    const lines = await tokenize('a.ts', 'const a = 1; /* start\nstill a comment\nend */ let b;');
     expect(lines).toHaveLength(3);
     expect(lines![1]).toEqual([{ text: 'still a comment', color: 'var(--syntax-token-comment)' }]);
   });
 
   it('leaves a file with no grammar as plain text', async () => {
-    expect(await highlightLines('notes.unknownext', 'hello')).toBeNull();
+    expect(await tokenize('notes.unknownext', 'hello')).toBeNull();
   });
 });
 
