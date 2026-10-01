@@ -162,7 +162,6 @@
     color: var(--on-emphasis);
     font: 600 14px/1 var(--font-sans);
     cursor: pointer;
-    box-shadow: 0 0 0 3px var(--accent-glow);
     animation: z-pop var(--dur-fast) var(--ease-out);
   }
   .add-btn.inline {

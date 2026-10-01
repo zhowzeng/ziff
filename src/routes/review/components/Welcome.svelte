@@ -24,18 +24,7 @@
   ];
 </script>
 
-<div
-  class="welcome"
-  role="presentation"
-  onpointermove={(e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
-    e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
-  }}
->
-  <div class="grid" aria-hidden="true"></div>
-  <div class="aura" aria-hidden="true"></div>
-  <div class="spot" aria-hidden="true"></div>
+<div class="welcome">
 
   <div class="stack">
     <div class="mark"><Logo size={56} /></div>
@@ -81,41 +70,6 @@
     overflow: hidden;
     padding: 32px;
   }
-  .grid {
-    position: absolute;
-    inset: 0;
-    background-image: radial-gradient(var(--border-strong) 1px, transparent 1.2px);
-    background-size: 24px 24px;
-    opacity: 0.55;
-    -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, #000 10%, transparent 75%);
-    mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, #000 10%, transparent 75%);
-    pointer-events: none;
-  }
-  /* Follows the pointer: a soft spotlight that lights the dot grid under it. */
-  .spot {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 40%), var(--accent-glow), transparent 70%);
-    opacity: 0.7;
-    pointer-events: none;
-    transition: opacity var(--dur-slow) ease;
-  }
-  .aura {
-    position: absolute;
-    width: 720px;
-    height: 720px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -62%);
-    background: radial-gradient(closest-side, var(--accent-glow), transparent);
-    opacity: 0.55;
-    filter: blur(20px);
-    pointer-events: none;
-    animation: breathe 7s ease-in-out infinite;
-  }
-  @keyframes breathe {
-    50% { transform: translate(-50%, -62%) scale(1.08); opacity: 0.75; }
-  }
   .stack {
     position: relative;
     display: flex;
@@ -127,26 +81,19 @@
   .stack > * {
     animation: z-fade-up var(--dur-slow) var(--ease-out) both;
   }
-  .mark {
-    filter: drop-shadow(0 10px 24px var(--accent-glow));
-  }
   h1 {
     margin: 22px 0 0;
     font-family: var(--font-display);
-    font-size: 72px;
-    line-height: 0.98;
+    font-size: 52px;
+    line-height: 1.08;
     font-weight: 400;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.015em;
     color: var(--text-primary);
     animation-delay: 60ms;
   }
   h1 em {
-    font-style: italic;
-    background: var(--accent-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    padding-right: 0.08em;
+    font-style: normal;
+    color: var(--text-secondary);
   }
   p {
     margin: 14px 0 0;
@@ -257,8 +204,5 @@
     font-size: 11px;
     color: var(--text-secondary);
     text-align: center;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .aura { animation: none; }
   }
 </style>

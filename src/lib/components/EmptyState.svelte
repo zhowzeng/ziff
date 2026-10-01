@@ -8,8 +8,6 @@
 <div class="empty {size}">
   {#if size === 'md'}
     <div class="art" aria-hidden="true">
-      <span class="ring r1"></span>
-      <span class="ring r2"></span>
       <div class="badge" class:spin={icon === 'loader'}><Icon name={icon} size={24} color="var(--accent-emphasis)" /></div>
     </div>
   {:else}
@@ -82,24 +80,6 @@
     place-items: center;
     border-radius: var(--radius-xl);
     background: var(--bg-raised);
-    box-shadow: var(--shadow-md), inset 0 0 0 1px var(--accent-muted-border);
-  }
-  .ring {
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--accent-muted-border);
-    opacity: 0;
-    animation: ring 3.2s var(--ease-out) infinite;
-  }
-  .r2 {
-    animation-delay: 1.6s;
-  }
-  @keyframes ring {
-    0% { transform: scale(.9); opacity: .7; }
-    80%, 100% { transform: scale(1.9); opacity: 0; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .ring { animation: none; }
+    box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border-default);
   }
 </style>

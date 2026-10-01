@@ -203,7 +203,6 @@
   }
   .jump:hover:not(:disabled) {
     border-color: var(--accent-muted-border);
-    box-shadow: 0 0 0 3px var(--accent-glow);
   }
   .jump:disabled {
     opacity: 0.5;

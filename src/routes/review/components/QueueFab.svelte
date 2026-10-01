@@ -32,7 +32,7 @@
   }
   .fab:hover {
     transform: translateY(-2px);
-    box-shadow: var(--shadow-lg), 0 0 0 4px var(--accent-glow);
+    box-shadow: var(--shadow-lg);
   }
   .fab.open {
     right: 374px;
