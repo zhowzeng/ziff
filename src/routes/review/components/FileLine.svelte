@@ -24,36 +24,99 @@
 </script>
 
 <div
+  class="line"
+  class:selected
   role="presentation"
   onmouseenter={() => {
     hover = true;
     onGutterEnter?.(index);
   }}
   onmouseleave={() => (hover = false)}
-  style={`display:flex;background:${selected ? 'var(--accent-subtle)' : 'transparent'};
-    border-left:3px solid ${selected ? 'var(--accent-emphasis)' : 'transparent'};
-    font-family:var(--font-mono);font-size:var(--diff-font-size);line-height:20px;position:relative`}
 >
   {#if (hover || selected) && onGutterDown}
     <button
+      class="add-btn"
       onmousedown={(e) => {
         e.preventDefault();
         onGutterDown(index);
       }}
       title="Add comment (drag to select multiple lines)"
-      style="position:absolute;left:2px;top:1px;width:16px;height:18px;border-radius:4px;border:none;background:var(--accent-emphasis);color:#fff;font-size:12px;line-height:1;cursor:pointer;z-index:1"
+      aria-label="Add comment"
     >+</button>
   {/if}
-  <span style="width:72px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:8px;flex-shrink:0">{lineNo}</span>
-  <span
-    title={commented ? '這一行已留言' : undefined}
-    style="width:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;user-select:none"
-  >
+  <span class="no">{lineNo}</span>
+  <span class="mark" title={commented ? '這一行已留言' : undefined}>
     {#if commented}
       <Icon name="message-square" size={12} color="var(--accent-emphasis)" />
     {/if}
   </span>
   <!-- Stands in for the diff's +/- column so File View content lines up with a diff's. -->
-  <span style="width:14px;flex-shrink:0"></span>
-  <span style="color:var(--text-primary);white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0"><InlineText text={content} {tokens} kind="context" /></span>
+  <span class="sign"></span>
+  <span class="code"><InlineText text={content} {tokens} kind="context" /></span>
 </div>
+
+<style>
+  .line {
+    display: flex;
+    position: relative;
+    font-family: var(--font-mono);
+    font-size: var(--diff-font-size);
+    line-height: 20px;
+    background: transparent;
+    box-shadow: inset 2px 0 0 transparent;
+  }
+  .line:hover {
+    background: var(--bg-subtle);
+  }
+  .line.selected {
+    background: var(--accent-subtle);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .no {
+    width: 78px;
+    padding-right: 8px;
+    flex-shrink: 0;
+    text-align: right;
+    color: var(--text-tertiary);
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .mark {
+    width: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+  }
+  .sign {
+    width: 14px;
+    flex-shrink: 0;
+  }
+  .code {
+    color: var(--text-primary);
+    white-space: var(--diff-white-space, pre);
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+  .add-btn {
+    position: absolute;
+    left: 6px;
+    top: 1px;
+    z-index: 1;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent-emphasis);
+    color: var(--on-emphasis);
+    font: 600 14px/1 var(--font-sans);
+    cursor: pointer;
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    animation: z-pop var(--dur-fast) var(--ease-out);
+  }
+  .add-btn:hover {
+    background: var(--accent-strong);
+  }
+</style>

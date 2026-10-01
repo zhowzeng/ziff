@@ -216,6 +216,7 @@
       {noRepos}
       hasChanges={changedTree.length > 0}
       lineWrap={settings.lineWrap}
+      onAddRepo={addRepo}
     />
 
     {#if commentQueue.open}
@@ -255,6 +256,7 @@
   }
 
   .app {
+    animation: z-fade-in var(--dur-slow) ease-out;
     display: flex;
     flex-direction: column;
     height: 100vh;

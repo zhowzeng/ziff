@@ -2,9 +2,11 @@
 // behind them (docs/decisions/0006).
 
 export type DiffFontSize = 'sm' | 'md' | 'lg';
+export type Theme = 'system' | 'light' | 'dark';
 export type DefaultDiffMode = 'unstaged' | 'staged' | 'branch';
 
 export interface Settings {
+  theme: Theme;
   diffFontSize: DiffFontSize;
   defaultDiffMode: DefaultDiffMode;
   /** Wrap lines wider than the panel instead of scrolling sideways to them. */
@@ -14,6 +16,7 @@ export interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
+  theme: 'system',
   diffFontSize: 'md',
   defaultDiffMode: 'unstaged',
   lineWrap: false,
@@ -23,6 +26,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 const STORAGE_KEY = 'ziff.settings';
 
+const THEMES: Theme[] = ['system', 'light', 'dark'];
 const DIFF_FONT_SIZES: DiffFontSize[] = ['sm', 'md', 'lg'];
 const DEFAULT_DIFF_MODES: DefaultDiffMode[] = ['unstaged', 'staged', 'branch'];
 
@@ -39,6 +43,7 @@ function sanitize(stored: unknown): Settings {
   if (typeof stored !== 'object' || stored === null) return { ...DEFAULT_SETTINGS };
   const s = stored as Record<string, unknown>;
   return {
+    theme: THEMES.includes(s.theme as Theme) ? (s.theme as Theme) : DEFAULT_SETTINGS.theme,
     diffFontSize: DIFF_FONT_SIZES.includes(s.diffFontSize as DiffFontSize)
       ? (s.diffFontSize as DiffFontSize)
       : DEFAULT_SETTINGS.diffFontSize,

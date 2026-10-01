@@ -20,7 +20,7 @@
   let canSubmit = $derived(Boolean(replyValue && replyValue.trim()));
 </script>
 
-<div style="border:1px solid var(--border-default);border-radius:var(--radius-lg);background:var(--gray-0);box-shadow:var(--shadow-md);overflow:hidden;max-width:560px;position:relative">
+<div style="border:1px solid var(--accent-muted-border);border-radius:var(--radius-xl);background:var(--bg-raised);box-shadow:var(--shadow-lg);overflow:hidden;max-width:600px;position:relative">
   {#if onClose}
     <button
       onclick={onClose}

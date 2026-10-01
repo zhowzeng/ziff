@@ -5,6 +5,13 @@
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ziff</title>
+    <script>
+      // Paint the saved theme before the first frame so a dark Ziff never flashes white.
+      try {
+        var t = JSON.parse(localStorage.getItem('ziff.settings') || '{}').theme;
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

@@ -1,11 +1,7 @@
 <script>
   import Icon from '$lib/components/Icon.svelte';
 
-  const kinds = {
-    add: { bg: 'var(--diff-add-bg)', bar: 'var(--diff-add-bg-strong)', text: 'var(--diff-add-text)', prefix: '+' },
-    del: { bg: 'var(--diff-remove-bg)', bar: 'var(--diff-remove-bg-strong)', text: 'var(--diff-remove-text)', prefix: '-' },
-    context: { bg: 'transparent', bar: 'transparent', text: 'var(--text-primary)', prefix: ' ' },
-  };
+  const PREFIX = { add: '+', del: '−', context: '' };
 
   /**
    * @typedef {Object} Props
@@ -38,50 +34,142 @@
   } = $props();
 
   let hover = $state(false);
-  let k = $derived(kinds[kind] || kinds.context);
 </script>
 
 <div
+  class="line {kind}"
+  class:selected
   role="presentation"
   onmouseenter={() => {
     hover = true;
     onGutterEnter?.(index);
   }}
   onmouseleave={() => (hover = false)}
-  style={`display:flex;background:${selected ? 'var(--accent-subtle)' : k.bg};
-    border-left:3px solid ${selected ? 'var(--accent-emphasis)' : k.bar};
-    font-family:var(--font-mono);font-size:var(--diff-font-size);line-height:20px;position:relative`}
 >
   <!-- A del line is gone from the worktree, so `path:L12` for it would name a line the
        CLI agent reads as something else — no affordance there (docs/decisions/0010).
        This matches Split view, where only the new-side column offers it. -->
   {#if (hover || selected) && onGutterDown && newNo !== null}
     <button
+      class="add-btn"
       onmousedown={(e) => {
         e.preventDefault();
         onGutterDown(index);
       }}
       title="Add comment (drag to select multiple lines)"
-      style="position:absolute;left:2px;top:1px;width:16px;height:18px;border-radius:4px;border:none;background:var(--accent-emphasis);color:#fff;font-size:12px;line-height:1;cursor:pointer;z-index:1"
+      aria-label="Add comment"
     >+</button>
   {/if}
-  <span style="width:36px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:6px;flex-shrink:0">{oldNo ?? ''}</span>
-  <span style="width:36px;text-align:right;color:var(--text-tertiary);user-select:none;padding-right:8px;flex-shrink:0">{newNo ?? ''}</span>
-  <span
-    title={commented ? '這一行已留言' : undefined}
-    style="width:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;user-select:none"
-  >
+  <span class="gutter">
+    <span class="no old">{oldNo ?? ''}</span>
+    <span class="no new">{newNo ?? ''}</span>
+  </span>
+  <span class="mark" title={commented ? '這一行已留言' : undefined}>
     {#if commented}
       <Icon name="message-square" size={12} color="var(--accent-emphasis)" />
     {/if}
   </span>
-  <span style={`width:14px;flex-shrink:0;color:${k.text};user-select:none`}>{k.prefix}</span>
-  <span style={`color:${k.text};white-space:var(--diff-white-space, pre);overflow-wrap:anywhere;min-width:0`}>{@render children?.()}</span>
+  <span class="sign">{PREFIX[kind]}</span>
+  <span class="code">{@render children?.()}</span>
   {#if commentable && hover && !onGutterDown}
-    <button
-      onclick={onAddComment}
-      title="Add comment"
-      style="margin-left:auto;margin-right:8px;width:18px;height:18px;border-radius:4px;border:none;background:var(--accent-emphasis);color:#fff;font-size:12px;line-height:1;cursor:pointer"
-    >+</button>
+    <button class="add-btn inline" onclick={onAddComment} title="Add comment" aria-label="Add comment">+</button>
   {/if}
 </div>
+
+<style>
+  .line {
+    display: flex;
+    position: relative;
+    font-family: var(--font-mono);
+    font-size: var(--diff-font-size);
+    line-height: 20px;
+    --line-bg: transparent;
+    --line-gutter: transparent;
+    --line-bar: transparent;
+    --line-sign: var(--text-tertiary);
+    background: var(--line-bg);
+    box-shadow: inset 2px 0 0 var(--line-bar);
+  }
+  .line.add {
+    --line-bg: var(--diff-add-bg);
+    --line-gutter: var(--diff-add-gutter);
+    --line-bar: var(--diff-add-border);
+    --line-sign: var(--diff-add-text);
+  }
+  .line.del {
+    --line-bg: var(--diff-remove-bg);
+    --line-gutter: var(--diff-remove-gutter);
+    --line-bar: var(--diff-remove-border);
+    --line-sign: var(--diff-remove-text);
+  }
+  .line.context:hover {
+    --line-bg: var(--bg-subtle);
+  }
+  .line.selected {
+    --line-bg: var(--accent-subtle);
+    --line-gutter: var(--accent-subtle);
+    --line-bar: var(--accent);
+    --line-sign: var(--accent-emphasis);
+  }
+
+  .gutter {
+    display: flex;
+    flex-shrink: 0;
+    background: var(--line-gutter);
+    padding-left: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .no {
+    width: 38px;
+    padding-right: 8px;
+    text-align: right;
+    color: var(--text-tertiary);
+    user-select: none;
+  }
+  .mark {
+    width: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+  }
+  .sign {
+    width: 14px;
+    flex-shrink: 0;
+    color: var(--line-sign);
+    user-select: none;
+    font-weight: 500;
+  }
+  .code {
+    color: var(--text-primary);
+    white-space: var(--diff-white-space, pre);
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  .add-btn {
+    position: absolute;
+    left: 6px;
+    top: 1px;
+    z-index: 1;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent-emphasis);
+    color: var(--on-emphasis);
+    font: 600 14px/1 var(--font-sans);
+    cursor: pointer;
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    animation: z-pop var(--dur-fast) var(--ease-out);
+  }
+  .add-btn.inline {
+    left: auto;
+    right: 8px;
+  }
+  .add-btn:hover {
+    background: var(--accent-strong);
+  }
+</style>

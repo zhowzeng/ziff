@@ -25,26 +25,64 @@
     }
     toast('已複製檔案路徑', { variant: 'success' });
   }
+
+  // The file name carries the weight; its folders recede, like a breadcrumb.
+  let slash = $derived(path.lastIndexOf('/'));
+  let dir = $derived(slash >= 0 ? path.slice(0, slash + 1) : '');
+  let base = $derived(slash >= 0 ? path.slice(slash + 1) : path);
 </script>
 
-<div style="height:38px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--bg-subtle)">
-  <Icon name="chevron-down" size={13} color="var(--text-tertiary)" />
+<div class="header">
   {#if renamedFrom}
     <!-- A moved file shows both ends: the diff below is against its own old content,
          not a whole-file delete and re-add. -->
-    <span style="font-family:var(--font-mono);font-size:var(--text-sm);color:var(--text-tertiary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{renamedFrom}</span>
+    <span class="old">{renamedFrom}</span>
     <Icon name="arrow-right" size={12} color="var(--text-tertiary)" />
   {/if}
-  <span style="font-family:var(--font-mono);font-size:var(--text-sm);color:var(--text-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{path}</span>
-  <div style="margin-left:auto;display:flex;gap:2px;flex-shrink:0">
-    <IconButton icon="copy" title="Copy path" size={24} onclick={copyPath} />
+  <span class="path"><span class="dir">{dir}</span><span class="base">{base}</span></span>
+  <div class="actions">
+    <IconButton icon="copy" title="Copy path" size={26} onclick={copyPath} />
     {#if onToggleHunks}
       <IconButton
         icon={allCollapsed ? 'chevrons-up-down' : 'chevrons-down-up'}
         title={allCollapsed ? 'Expand all hunks' : 'Collapse all hunks'}
-        size={24}
+        size={26}
         onclick={onToggleHunks}
       />
     {/if}
   </div>
 </div>
+
+<style>
+  .header {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px 0 16px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    min-width: 0;
+  }
+  .old,
+  .dir {
+    color: var(--text-tertiary);
+  }
+  .old,
+  .path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .base {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .actions {
+    margin-left: auto;
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+</style>

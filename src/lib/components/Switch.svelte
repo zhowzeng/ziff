@@ -33,11 +33,11 @@
     onclick={toggle}
     onkeydown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); } }}
     style={`position:relative;display:inline-flex;align-items:center;width:32px;height:18px;border-radius:var(--radius-full);flex-shrink:0;
-      background:${checked ? 'var(--accent-emphasis)' : 'var(--gray-200)'};transition:background .12s ease`}
+      background:${checked ? 'var(--accent-emphasis)' : 'var(--bg-inset)'};transition:background var(--dur-base) var(--ease-out);box-shadow:inset 0 0 0 1px ${checked ? 'transparent' : 'var(--border-strong)'}`}
   >
     <span
       style={`position:absolute;top:2px;left:${checked ? '16px' : '2px'};width:14px;height:14px;border-radius:50%;
-        background:var(--gray-0);box-shadow:var(--shadow-sm);transition:left .12s ease`}
+        background:${checked ? 'var(--on-emphasis)' : 'var(--text-tertiary)'};box-shadow:var(--shadow-sm);transition:left var(--dur-base) var(--ease-spring),background var(--dur-base) ease`}
     ></span>
   </span>
   {#if label}<span>{label}</span>{/if}

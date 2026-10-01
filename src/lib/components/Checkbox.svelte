@@ -31,7 +31,7 @@
     onclick={toggle}
     onkeydown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); } }}
     style={`display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;flex-shrink:0;
-      border:1px solid ${checked ? 'var(--accent-emphasis)' : 'var(--border-default)'};background:${checked ? 'var(--accent-emphasis)' : 'var(--gray-0)'};
+      border:1px solid ${checked ? 'var(--accent-emphasis)' : 'var(--border-default)'};background:${checked ? 'var(--accent-emphasis)' : 'var(--bg-raised)'};
       transition:background .12s ease, border-color .12s ease`}
   >
     {#if checked}

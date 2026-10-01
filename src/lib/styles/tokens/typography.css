@@ -1,12 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,200..900;1,200..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 :root{
 --font-sans:'Mona Sans','Mona Sans VF',-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif;
---font-mono:ui-monospace,'SF Mono','SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;
+--font-mono:'JetBrains Mono',ui-monospace,'SF Mono','SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;
 --text-xs:12px;--text-sm:13px;--text-base:14px;--text-md:16px;--text-lg:20px;--text-xl:24px;--text-2xl:32px;
 /* Diff and File View line text. Overridden per the reviewer's Diff 字級 setting. */
 --diff-font-size:var(--text-sm);
 --leading-tight:1.25;--leading-normal:1.5;--leading-relaxed:1.7;
 --weight-regular:400;--weight-medium:500;--weight-semibold:600;--weight-bold:700;
 }
-body{font-family:var(--font-sans)}
+body{font-family:var(--font-sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;font-feature-settings:'ss01','cv11'}
+::selection{background:var(--accent-glow)}
 code,pre,.mono{font-family:var(--font-mono)}

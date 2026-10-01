@@ -43,7 +43,7 @@
     <span
       role="tooltip"
       style={`position:absolute;${positions[position] || positions.top};white-space:nowrap;pointer-events:none;z-index:90;
-        font-family:var(--font-sans);font-size:11px;font-weight:500;color:var(--gray-0);background:var(--gray-900);
+        font-family:var(--font-sans);font-size:11px;font-weight:500;color:var(--tooltip-fg);background:var(--tooltip-bg);
         padding:4px 8px;border-radius:var(--radius-sm);box-shadow:var(--shadow-md)`}
     >
       {text}
