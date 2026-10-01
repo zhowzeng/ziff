@@ -39,6 +39,10 @@ A git diff term (unchanged line shown for surrounding context) — general to di
 Viewing a file's complete current (worktree) content, with no diff highlighting — separate from the diff view shown for changed files. A file with no changes opens here instead of the diff view. Comments can be left here too, anchored to the file's own (worktree) line numbers.
 _Avoid_: File browser, source view
 
+**Command Palette**:
+The `Ctrl/⌘ + K` box that jumps straight to one of the Repo's changed files by typing part of its path. It lists changed files only — the same ones the sidebar shows by default — and opens the file in its diff view.
+_Avoid_: Quick open, file finder, spotlight
+
 **Anchor Text**:
 The content of the lines a Comment covers, kept with the Comment as it was when the Comment was written. It is what decides whether the worktree still holds the code the Comment was about — the line numbers are only a pointer, the Anchor Text is what the Comment refers to.
 _Avoid_: Snapshot, quote, cached lines

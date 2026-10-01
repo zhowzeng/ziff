@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const STORAGE_KEY = 'ziff.settings';
 
 const DEFAULTS = {
+  theme: 'system',
   diffFontSize: 'md',
   defaultDiffMode: 'unstaged',
   lineWrap: false,
@@ -53,6 +54,11 @@ describe('stored value that is not settings at all', () => {
 });
 
 describe('stored value with bad fields', () => {
+  it('replaces a theme this build does not have', async () => {
+    const { settings } = await loadWith(JSON.stringify({ ...DEFAULTS, theme: 'sepia' }));
+    expect(settings.theme).toBe('system');
+  });
+
   it('replaces a diffFontSize this build does not have', async () => {
     const { settings } = await loadWith(JSON.stringify({ ...DEFAULTS, diffFontSize: 'xl' }));
     expect(settings.diffFontSize).toBe('md');
@@ -89,6 +95,7 @@ describe('round trip', () => {
     const { settings, updateSettings } = await loadWith(null);
     updateSettings({ diffFontSize: 'sm', lineWrap: true, usePrefixPrompt: true, prefixPrompt: 'review this' });
     expect({ ...settings }).toEqual({
+      theme: 'system',
       diffFontSize: 'sm',
       defaultDiffMode: 'unstaged',
       lineWrap: true,

@@ -1,0 +1,38 @@
+html, body { margin: 0; height: 100%; background: var(--bg-canvas); color: var(--text-primary); }
+body { overflow: hidden; }
+
+*, *::before, *::after { box-sizing: border-box; }
+button { font: inherit; }
+
+/* One focus treatment for everything keyboard-reachable; mouse clicks never show it. */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+input:focus-visible, textarea:focus-visible { outline: none; }
+
+/* Slim, quiet scrollbars that pick up the theme instead of the OS chrome. */
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); background-clip: content-box; border: 3px solid transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+@keyframes z-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes z-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes z-pop {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes z-spin { to { transform: rotate(360deg); } }

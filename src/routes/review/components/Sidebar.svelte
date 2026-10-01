@@ -4,6 +4,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import Input from "$lib/components/Input.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
+  import Checkbox from "$lib/components/Checkbox.svelte";
   import { allDirPaths, pruneByName } from "../helpers";
   import type { DiffMode, TreeNode } from "../types";
 
@@ -53,6 +54,10 @@
   let shownTree = $derived(fileFilter.trim() ? pruneByName(baseTree, fileFilter.trim().toLowerCase()) : baseTree);
   // "No diff" is about what the sidebar would actually list: the changed files, or
   // the whole tree when the reviewer asked to see every file.
+  function countFiles(nodes: TreeNode[]): number {
+    return nodes.reduce((n, node) => n + (node.type === "dir" ? countFiles(node.children) : 1), 0);
+  }
+  let fileCount = $derived(countFiles(shownTree));
   let emptyState = $derived.by(() => {
     if (baseTree.length === 0) return "no-diff";
     if (fileFilter.trim() && shownTree.length === 0) return "no-match";
@@ -69,14 +74,21 @@
       <Icon name="search" size={13} color="var(--text-tertiary)" class="filter-icon" />
       <Input placeholder="Filter files…" size="sm" bind:value={fileFilter} disabled={!repoId} style="padding-left:26px" />
     </div>
-    <label class="show-all-label">
-      <input type="checkbox" bind:checked={showAllFiles} disabled={!repoId} />
-      顯示所有檔案
-    </label>
+    <Checkbox bind:checked={showAllFiles} disabled={!repoId} label="顯示所有檔案" />
   </div>
+  {#if repoId && !detachedHead && !loading}
+    <div class="sidebar-heading">
+      <span>{showAllFiles ? "All files" : "Changed files"}</span>
+      <span class="count">{fileCount}</span>
+    </div>
+  {/if}
   <div class="sidebar-tree">
     {#if loading}
-      <EmptyState size="sm" icon="loader" title="載入中…" />
+      <div class="skeleton" aria-label="載入中" role="status">
+        {#each [62, 48, 74, 56, 66, 44] as w, i (i)}
+          <span style:width="{w}%" style:animation-delay="{i * 90}ms"></span>
+        {/each}
+      </div>
     {:else if !repoId}
       <EmptyState
         size="sm"
@@ -111,83 +123,115 @@
 
 <style>
   .sidebar {
-    width: 240px;
+    width: 264px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border-default);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
     background: var(--bg-surface);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
     min-height: 0;
   }
 
   .sidebar-toolbar {
-    padding: var(--space-2);
-    border-bottom: 1px solid var(--border-muted);
+    padding: var(--space-3) var(--space-3) var(--space-2);
     flex-shrink: 0;
+  }
+  .sidebar-toolbar :global(.group) {
+    display: grid;
+    width: 100%;
   }
 
   .sidebar-filter {
-    padding: var(--space-2);
-    border-bottom: 1px solid var(--border-muted);
+    padding: 0 var(--space-3) var(--space-3);
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-3);
   }
 
   .filter-input-wrap {
     position: relative;
   }
-
   .filter-input-wrap :global(.filter-icon) {
     position: absolute;
-    left: 8px;
+    left: 9px;
     top: 8px;
     pointer-events: none;
   }
 
-  .show-all-label {
+  .sidebar-heading {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-4);
+    border-top: 1px solid var(--border-muted);
     font-family: var(--font-sans);
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
-    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
   }
-
-  .show-all-label input {
-    margin: 0;
-    accent-color: var(--accent-emphasis);
+  .count {
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    background: var(--bg-inset);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    letter-spacing: 0;
   }
 
   .sidebar-tree {
     flex: 1;
     min-height: 0;
-    padding: var(--space-2);
+    padding: 0 var(--space-3) var(--space-3);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+  }
+
+  .skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: var(--space-3) var(--space-2);
+  }
+  .skeleton span {
+    height: 12px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(90deg, var(--bg-inset) 0%, var(--border-muted) 50%, var(--bg-inset) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
   }
 
   .settings-entry {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 36px;
-    padding: 0 10px;
+    height: 40px;
+    padding: 0 var(--space-4);
     border: none;
     border-top: 1px solid var(--border-default);
-    background: var(--bg-subtle);
+    background: transparent;
     cursor: pointer;
     font-family: var(--font-sans);
     font-size: var(--text-sm);
     color: var(--text-secondary);
     flex-shrink: 0;
+    transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
   }
-
   .settings-entry:hover {
-    background: var(--bg-inset);
+    background: var(--bg-subtle);
+    color: var(--text-primary);
   }
-
 </style>

@@ -9,7 +9,7 @@
   );
 </script>
 
-<div style="border:1px solid var(--border-default);border-radius:var(--radius-md);background:var(--gray-0);overflow:hidden">
+<div style="border:1px solid var(--border-default);border-radius:var(--radius-lg);background:var(--bg-raised);box-shadow:var(--shadow-sm);overflow:hidden;animation:z-fade-up var(--dur-base) var(--ease-out)">
   <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg-subtle);border-bottom:1px solid var(--border-muted)">
     <Icon name="file-text" size={12} color="var(--text-tertiary)" />
     <span style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{item.file}</span>

@@ -1,5 +1,5 @@
 <script>
-  const colors = ['#0ea5a4', '#2563eb', '#7c3aed', '#d97706', '#dc2626', '#059669'];
+  const colors = ['#3d6a9c', '#4a7a6a', '#6f6a9a', '#9a7432', '#9a4a52', '#4a6a86'];
 
   /**
    * @typedef {Object} Props

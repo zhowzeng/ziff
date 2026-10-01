@@ -34,7 +34,7 @@
             <Icon name="more-vertical" size={14} color="var(--text-tertiary)" />
           </button>
           {#if menuOpen}
-            <div style="position:absolute;top:24px;right:0;background:var(--gray-0);border:1px solid var(--border-default);border-radius:var(--radius-md);box-shadow:var(--shadow-md);z-index:2;min-width:84px;overflow:hidden">
+            <div style="position:absolute;top:24px;right:0;background:var(--bg-raised);border:1px solid var(--border-default);border-radius:var(--radius-md);box-shadow:var(--shadow-md);z-index:2;min-width:84px;overflow:hidden">
               <button
                 onclick={() => {
                   editing = true;

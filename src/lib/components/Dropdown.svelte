@@ -52,9 +52,12 @@
 <div bind:this={root} style="position:relative;min-width:0;flex-shrink:1" aria-label={label}>
   <button
     onclick={() => (open = !open)}
+    aria-haspopup="listbox"
+    aria-expanded={open}
     style={`display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;min-width:0;width:100%;
-      background:${open ? 'var(--bg-subtle)' : 'transparent'};border:1px solid ${open ? 'var(--border-default)' : 'transparent'};
-      border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-sans);max-width:220px`}
+      border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-sans);max-width:220px`}
+    class="trigger"
+    class:open
   >
     {#if icon}
       <Icon name={icon} size={13} color="var(--text-tertiary)" />
@@ -68,8 +71,8 @@
   {#if open}
     <div
       style={`position:absolute;top:100%;left:0;margin-top:4px;width:${width}px;z-index:30;
-        background:var(--gray-0);border:1px solid var(--border-default);border-radius:var(--radius-md);
-        box-shadow:var(--shadow-lg);padding:4px`}
+        background:var(--bg-raised);border:1px solid var(--border-default);border-radius:var(--radius-lg);
+        box-shadow:var(--shadow-lg);padding:4px;animation:z-pop var(--dur-base) var(--ease-out);transform-origin:top left`}
     >
       {#if sublabel}
         <div style="padding:4px 8px;font-family:var(--font-sans);font-size:var(--text-xs);color:var(--text-tertiary)">{sublabel}</div>
@@ -151,6 +154,15 @@
 </div>
 
 <style>
+  .trigger {
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
+  }
+  .trigger:hover,
+  .trigger.open {
+    background: var(--bg-inset);
+  }
   .option {
     background: transparent;
   }

@@ -29,8 +29,8 @@
   let { items, repoName, onRemove, onCopyOne, onCopyAll, onClose } = $props();
 </script>
 
-<div style="width:320px;min-width:320px;border-left:1px solid var(--border-default);background:var(--bg-subtle);display:flex;flex-direction:column">
-  <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--border-default);background:var(--gray-0)">
+<div style="width:340px;min-width:340px;border:1px solid var(--border-default);border-radius:var(--radius-xl);overflow:hidden;box-shadow:var(--shadow-md);background:var(--bg-subtle);display:flex;flex-direction:column;animation:drawer-in var(--dur-slow) var(--ease-out)">
+  <div style="height:52px;display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;border-bottom:1px solid var(--border-default);background:var(--bg-surface)">
     <Icon name="terminal" size={14} color="var(--text-secondary)" />
     <span style="font-family:var(--font-sans);font-weight:600;font-size:var(--text-sm);color:var(--text-primary);flex-shrink:0">Comment Queue</span>
     {#if repoName}
@@ -68,3 +68,10 @@
     </div>
   {/if}
 </div>
+
+<style>
+  @keyframes drawer-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: none; }
+  }
+</style>

@@ -8,6 +8,7 @@
   import CommentThread from "./CommentThread.svelte";
   import Avatar from "$lib/components/Avatar.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
+  import Welcome from "./Welcome.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
   import { toast } from "$lib/toast/state.svelte";
   import { commentQueue } from "../comment-queue.svelte";
@@ -63,6 +64,10 @@
     hasChanges: boolean;
     /** Wrap long lines in the panel's width; otherwise the panel scrolls sideways. */
     lineWrap: boolean;
+    /** Short commit id when HEAD is on no branch, so there is nothing to diff. */
+    detachedHead: string | null;
+    /** Opens the folder picker, for the first-run screen's button. */
+    onAddRepo: () => void;
   }
   let {
     repoId,
@@ -85,6 +90,8 @@
     noRepos,
     hasChanges,
     lineWrap,
+    detachedHead,
+    onAddRepo,
   }: Props = $props();
 
   let isFileView = $derived(selectedView === "file");
@@ -339,16 +346,22 @@
   <main class="diff-panel diff-panel-empty">
     <EmptyState size="md" icon="loader" title="載入中…" />
   </main>
+{:else if noRepos}
+  <main class="diff-panel diff-panel-empty">
+    <Welcome {onAddRepo} />
+  </main>
 {:else if !repoId}
   <main class="diff-panel diff-panel-empty">
     <EmptyState
       size="md"
       icon="folder-git-2"
-      title={noRepos ? "加入一個 repo 開始" : "選擇一個 repo 開始"}
-      hint={noRepos
-        ? "從左上角 Repo 選單的「Add repo…」選擇本機 git repo 資料夾。"
-        : "從左上角選擇 repo 與 branch，即可檢視變更並開始留言。"}
+      title="選擇一個 repo 開始"
+      hint="從左上角選擇 repo 與 branch，即可檢視變更並開始留言。"
     />
+  </main>
+{:else if detachedHead}
+  <main class="diff-panel diff-panel-empty">
+    <EmptyState size="md" icon="git-commit-horizontal" title="HEAD 沒有指向分支" hint={`目前停在 ${detachedHead}。先 checkout 一個分支再回來 review。`} />
   </main>
 {:else if !selectedFile && !hasChanges}
   <main class="diff-panel diff-panel-empty">
@@ -469,11 +482,18 @@
 {/if}
 
 <style>
+  .diff-body {
+    animation: z-fade-in var(--dur-base) ease-out;
+  }
+
   .diff-panel {
     flex: 1;
     min-width: 0;
     overflow: auto;
-    background: var(--bg-canvas);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
   }
 
   /* Without wrapping, every row is as wide as the widest line, so its background runs
@@ -511,11 +531,14 @@
   .diff-panel-header {
     display: flex;
     align-items: stretch;
-    background: var(--bg-subtle);
+    background: var(--bg-glass);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
     border-bottom: 1px solid var(--border-default);
     position: sticky;
     top: 0;
     left: 0;
+    z-index: 5;
   }
 
   .file-header-wrap {
@@ -525,7 +548,7 @@
   }
 
   .view-toggle-wrap {
-    padding: 0 10px;
+    padding: 0 12px 0 4px;
     display: flex;
     align-items: center;
   }
@@ -533,9 +556,11 @@
   .thread-anchor {
     display: flex;
     gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-3) var(--space-4) var(--space-4);
     background: var(--bg-subtle);
+    border-top: 1px solid var(--border-muted);
     border-bottom: 1px solid var(--border-muted);
+    animation: z-fade-up var(--dur-slow) var(--ease-out);
   }
 
   .thread-avatar {

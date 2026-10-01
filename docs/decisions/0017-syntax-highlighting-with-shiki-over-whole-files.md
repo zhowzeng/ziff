@@ -10,7 +10,7 @@ already has. A del line takes its colours from the old side and every other line
 looked up by line number.
 
 Colours come from Shiki's CSS-variables theme, so every token is a `var(--syntax-*)` reference and the
-palette lives in `colors.css` with the other design tokens (GitHub Light values for now). The syntax
+palette lives in `colors.css` with the other design tokens (GitHub-style values in light and dark; see ADR 0018). The syntax
 colours and the within-line change marks (`inlineSegments`) are laid over each other in `paintLine`,
 which cuts a line wherever either one changes.
 

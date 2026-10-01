@@ -12,23 +12,34 @@
 
   /** @type {Props} */
   let { icon, size = 28, title, onclick, active = false } = $props();
-  let hover = $state(false);
-
-  let computedStyle = $derived(
-    `display:inline-flex;align-items:center;justify-content:center;` +
-      `width:${size}px;height:${size}px;border:1px solid transparent;border-radius:var(--radius-sm);` +
-      `background:${active ? 'var(--bg-inset)' : hover ? 'var(--bg-subtle)' : 'transparent'};` +
-      `color:${active ? 'var(--text-primary)' : 'var(--text-secondary)'};cursor:pointer;`
-  );
 </script>
 
-<button
-  {onclick}
-  {title}
-  aria-label={title}
-  onmouseenter={() => (hover = true)}
-  onmouseleave={() => (hover = false)}
-  style={computedStyle}
->
+<button class="icon-btn" class:active {onclick} {title} aria-label={title} style:width="{size}px" style:height="{size}px">
   <Icon name={icon} size={15} />
 </button>
+
+<style>
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+  }
+  .icon-btn:hover {
+    background: var(--bg-inset);
+    color: var(--text-primary);
+  }
+  .icon-btn:active {
+    background: var(--border-default);
+  }
+  .icon-btn.active {
+    background: var(--bg-inset);
+    color: var(--text-primary);
+  }
+</style>

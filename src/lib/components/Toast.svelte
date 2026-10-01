@@ -22,10 +22,10 @@
   }
 </script>
 
-<div style="position:fixed;bottom:16px;right:16px;z-index:100;display:flex;flex-direction:column;gap:8px;width:320px">
+<div role="status" aria-live="polite" style="position:fixed;bottom:16px;right:16px;z-index:100;display:flex;flex-direction:column;gap:8px;width:340px">
   {#each toasts as t (t.id)}
     {@const v = variants[t.variant] || variants.default}
-    <div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--gray-0);border:1px solid var(--border-default);border-radius:var(--radius-md);box-shadow:var(--shadow-md)">
+    <div style={`display:flex;align-items:flex-start;gap:8px;padding:10px 12px 10px 14px;background:var(--bg-raised);border:1px solid var(--border-default);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg),inset 3px 0 0 ${v.color};animation:z-pop var(--dur-slow) var(--ease-out)`}>
       <Icon name={v.icon} size={16} color={v.color} />
       <div style="flex:1;font-family:var(--font-sans);font-size:var(--text-sm);color:var(--text-primary);padding-top:1px">{t.message}</div>
       {#if t.action}

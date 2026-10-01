@@ -14,45 +14,60 @@
 
   /** @type {Props} */
   let { value, onChange, options } = $props();
+
+  let index = $derived(Math.max(0, options.findIndex((o) => o.value === value)));
 </script>
 
-<div class="group" role="group">
+<!-- Equal-width cells, so one pill can slide to the active one with a plain transform. -->
+<div class="group" role="group" style:--n={options.length} style:--i={index}>
+  <span class="pill" aria-hidden="true"></span>
   {#each options as o (o.value)}
-    <button
-      class="seg"
-      class:active={value === o.value}
-      onclick={() => onChange(o.value)}
-    >{o.label}</button>
+    <button class="seg" class:active={value === o.value} aria-pressed={value === o.value} onclick={() => onChange(o.value)}>{o.label}</button>
   {/each}
 </div>
 
 <style>
   .group {
-    display: inline-flex;
-    border: 1px solid var(--border-default);
+    position: relative;
+    display: inline-grid;
+    grid-template-columns: repeat(var(--n), 1fr);
+    padding: 2px;
+    gap: 0;
     border-radius: var(--radius-md);
-    overflow: hidden;
-    background: var(--gray-0);
+    background: var(--bg-inset);
+    box-shadow: inset 0 0 0 1px var(--border-muted);
+  }
+  .pill {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc((100% - 4px) / var(--n));
+    border-radius: calc(var(--radius-md) - 2px);
+    background: var(--bg-active);
+    box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-default);
+    transform: translateX(calc(var(--i) * 100%));
+    transition: transform var(--dur-base) var(--ease-out);
   }
   .seg {
+    position: relative;
+    z-index: 1;
     font-family: var(--font-sans);
     font-size: var(--text-xs);
     font-weight: 500;
-    padding: 5px 12px;
+    padding: 4px 12px;
     border: none;
-    border-left: 1px solid var(--border-default);
+    border-radius: calc(var(--radius-md) - 2px);
     cursor: pointer;
     background: transparent;
     color: var(--text-secondary);
-  }
-  .seg:first-child {
-    border-left: none;
+    white-space: nowrap;
+    transition: color var(--dur-fast) ease;
   }
   .seg:hover {
-    background: var(--bg-subtle);
+    color: var(--text-primary);
   }
   .seg.active {
-    background: var(--accent-subtle);
     color: var(--accent-emphasis);
     font-weight: 600;
   }

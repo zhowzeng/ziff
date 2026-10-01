@@ -5,6 +5,11 @@
   import Textarea from './Textarea.svelte';
   import Button from './Button.svelte';
 
+  const THEMES = [
+    { value: 'system', label: 'System' },
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+  ];
   const DIFF_FONT_SIZES = [
     { value: 'sm', label: 'Small' },
     { value: 'md', label: 'Medium' },
@@ -18,6 +23,7 @@
 
   /**
    * @typedef {import('$lib/settings/state.svelte').Settings} Settings
+   * @typedef {import('$lib/settings/state.svelte').Theme} Theme
    * @typedef {import('$lib/settings/state.svelte').DiffFontSize} DiffFontSize
    * @typedef {import('$lib/settings/state.svelte').DefaultDiffMode} DefaultDiffMode
    */
@@ -39,6 +45,14 @@
 {/snippet}
 
 <Modal {open} {onClose} title="設定" width={480} {footer}>
+  <div class="section">
+    <div class="section-title">外觀</div>
+    <div class="row">
+      <span class="row-label">主題</span>
+      <Segmented value={settings.theme} onChange={(v) => onChange({ theme: /** @type {Theme} */ (v) })} options={THEMES} />
+    </div>
+  </div>
+
   <div class="section">
     <div class="section-title">檢視</div>
     <div class="row">

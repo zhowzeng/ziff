@@ -1,8 +1,16 @@
 :root{
 --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;--space-12:48px;--space-16:64px;
---radius-sm:4px;--radius-md:6px;--radius-lg:10px;--radius-full:999px;
---shadow-sm:0 1px 0 rgba(31,35,40,.04);
---shadow-md:0 3px 6px rgba(140,149,159,.15);
---shadow-lg:0 8px 24px rgba(140,149,159,.2);
+--radius-sm:4px;--radius-md:6px;--radius-lg:8px;--radius-xl:12px;--radius-full:999px;
+--shadow-sm:0 1px 2px rgba(var(--shadow-color,20,24,28),.06);
+--shadow-md:0 2px 4px rgba(var(--shadow-color,20,24,28),.04),0 8px 20px rgba(var(--shadow-color,20,24,28),.08);
+--shadow-lg:0 4px 8px rgba(var(--shadow-color,20,24,28),.05),0 20px 48px rgba(var(--shadow-color,20,24,28),.18);
 --border-width:1px;
+/* Motion. One decelerating curve for things arriving, one springy curve for things that
+   respond to a press; durations stay short because this is a tool, not a showcase. */
+--ease-out:cubic-bezier(.22,1,.36,1);
+--ease-spring:cubic-bezier(.34,1.56,.64,1);
+--dur-fast:120ms;--dur-base:200ms;--dur-slow:360ms;
+}
+@media (prefers-reduced-motion: reduce){
+:root{--dur-fast:0ms;--dur-base:0ms;--dur-slow:0ms}
 }
