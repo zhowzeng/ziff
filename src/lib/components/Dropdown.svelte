@@ -52,6 +52,8 @@
 <div bind:this={root} style="position:relative;min-width:0;flex-shrink:1" aria-label={label}>
   <button
     onclick={() => (open = !open)}
+    aria-haspopup="listbox"
+    aria-expanded={open}
     style={`display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;min-width:0;width:100%;
       border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-sans);max-width:220px`}
     class="trigger"

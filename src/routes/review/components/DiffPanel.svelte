@@ -64,6 +64,8 @@
     hasChanges: boolean;
     /** Wrap long lines in the panel's width; otherwise the panel scrolls sideways. */
     lineWrap: boolean;
+    /** Short commit id when HEAD is on no branch, so there is nothing to diff. */
+    detachedHead: string | null;
     /** Opens the folder picker, for the first-run screen's button. */
     onAddRepo: () => void;
   }
@@ -88,6 +90,7 @@
     noRepos,
     hasChanges,
     lineWrap,
+    detachedHead,
     onAddRepo,
   }: Props = $props();
 
@@ -355,6 +358,10 @@
       title="選擇一個 repo 開始"
       hint="從左上角選擇 repo 與 branch，即可檢視變更並開始留言。"
     />
+  </main>
+{:else if detachedHead}
+  <main class="diff-panel diff-panel-empty">
+    <EmptyState size="md" icon="git-commit-horizontal" title="HEAD 沒有指向分支" hint={`目前停在 ${detachedHead}。先 checkout 一個分支再回來 review。`} />
   </main>
 {:else if !selectedFile && !hasChanges}
   <main class="diff-panel diff-panel-empty">

@@ -68,14 +68,24 @@
   .dir {
     color: var(--text-tertiary);
   }
-  .old,
+  /* Long paths give up their folders first: the file name is what the reviewer is
+     looking for, so it keeps its width and only the folder part is cut short. */
   .path {
+    display: flex;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .old,
+  .dir {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .base {
+    flex-shrink: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: var(--text-primary);
     font-weight: 600;
   }

@@ -224,6 +224,7 @@
       {noRepos}
       hasChanges={changedTree.length > 0}
       lineWrap={settings.lineWrap}
+      detachedHead={reviewState.detachedHead}
       onAddRepo={addRepo}
     />
 

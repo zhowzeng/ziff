@@ -76,7 +76,7 @@
     </div>
     <Checkbox bind:checked={showAllFiles} disabled={!repoId} label="顯示所有檔案" />
   </div>
-  {#if repoId && !detachedHead}
+  {#if repoId && !detachedHead && !loading}
     <div class="sidebar-heading">
       <span>{showAllFiles ? "All files" : "Changed files"}</span>
       <span class="count">{fileCount}</span>

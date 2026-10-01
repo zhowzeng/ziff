@@ -14,14 +14,39 @@
   /** @type {Props} */
   let { open = false, onClose, title, width = 420, children, footer } = $props();
 
+  /** @type {HTMLElement | undefined} */
+  let dialog = $state();
+
+  const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  // While open: Escape closes, Tab stays inside the dialog, focus moves in on open and
+  // goes back to whatever had it when the dialog closes.
   $effect(() => {
-    if (!open) return;
+    if (!open || !dialog) return;
+    const el = dialog;
+    const previous = /** @type {HTMLElement | null} */ (document.activeElement);
     /** @param {KeyboardEvent} e */
     function onKey(e) {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') return onClose?.();
+      if (e.key !== 'Tab') return;
+      const items = /** @type {HTMLElement[]} */ ([...el.querySelectorAll(FOCUSABLE)]);
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
+    (el.querySelector(FOCUSABLE) instanceof HTMLElement ? /** @type {HTMLElement} */ (el.querySelector(FOCUSABLE)) : el).focus();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      previous?.focus?.();
+    };
   });
 </script>
 
@@ -32,6 +57,8 @@
     style="position:fixed;inset:0;background:var(--bg-scrim);backdrop-filter:blur(6px) saturate(1.1);-webkit-backdrop-filter:blur(6px);z-index:80;display:flex;align-items:center;justify-content:center;animation:z-fade-in var(--dur-base) ease-out"
   >
     <div
+      bind:this={dialog}
+      tabindex="-1"
       role="dialog"
       aria-modal="true"
       aria-label={title}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/Icon.svelte";
+  import { filterFiles, flattenFiles, type PaletteEntry } from "../palette";
   import type { TreeNode } from "../types";
 
   interface Props {
@@ -11,57 +12,29 @@
   }
   let { open, tree, selectedFile, onSelect, onClose }: Props = $props();
 
-  type Entry = { path: string; name: string; dir: string; add?: number; del?: number };
-
-  function flatten(nodes: TreeNode[]): Entry[] {
-    return nodes.flatMap((n) => {
-      if (n.type === "dir") return flatten(n.children);
-      const slash = n.path.lastIndexOf("/");
-      return [{ path: n.path, name: n.name, dir: slash >= 0 ? n.path.slice(0, slash + 1) : "", add: n.changes?.add, del: n.changes?.del }];
-    });
-  }
-
   let query = $state("");
   let active = $state(0);
   let input = $state<HTMLInputElement>();
   let list = $state<HTMLElement>();
 
-  let entries = $derived(flatten(tree));
-  // Every typed character must appear in order in the path: a light subsequence match,
-  // ranked so file-name hits come before folder-only hits.
-  let results = $derived.by(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return entries;
-    const scored: [Entry, number][] = [];
-    for (const e of entries) {
-      const path = e.path.toLowerCase();
-      let i = 0;
-      for (const ch of path) if (ch === q[i]) i++;
-      if (i < q.length) continue;
-      const inName = e.name.toLowerCase().includes(q);
-      scored.push([e, (inName ? 0 : 10) + path.length / 100]);
-    }
-    return scored.sort((a, b) => a[1] - b[1]).map(([e]) => e);
-  });
+  let entries = $derived(flattenFiles(tree));
+  let results = $derived(filterFiles(entries, query));
 
   $effect(() => {
-    if (open) {
-      query = "";
-      active = Math.max(0, entries.findIndex((e) => e.path === selectedFile));
-      queueMicrotask(() => input?.focus());
-    }
-  });
-  $effect(() => {
-    // A new query starts again from the top hit.
-    query;
-    active = 0;
+    if (!open) return;
+    query = "";
+    active = Math.max(0, entries.findIndex((e) => e.path === selectedFile));
+    const previous = document.activeElement as HTMLElement | null;
+    queueMicrotask(() => input?.focus());
+    // Back to wherever the reviewer was, unless choosing a file already moved focus.
+    return () => previous?.focus?.();
   });
   $effect(() => {
     active;
     list?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
   });
 
-  function choose(e: Entry | undefined) {
+  function choose(e: PaletteEntry | undefined) {
     if (!e) return;
     onClose();
     onSelect(e.path);
@@ -89,12 +62,12 @@
     <div class="palette" role="dialog" aria-modal="true" aria-label="Jump to file">
       <div class="search">
         <Icon name="search" size={16} color="var(--text-tertiary)" />
-        <input bind:this={input} bind:value={query} onkeydown={onKey} placeholder="Jump to a changed file…" spellcheck="false" autocomplete="off" />
+        <input role="combobox" aria-expanded="true" aria-controls="palette-list" aria-activedescendant={results[active] ? `palette-opt-${active}` : undefined} bind:this={input} bind:value={query} oninput={() => (active = 0)} onkeydown={onKey} placeholder="Jump to a changed file…" spellcheck="false" autocomplete="off" />
         <kbd>esc</kbd>
       </div>
-      <div class="list" role="listbox" bind:this={list}>
+      <div class="list" id="palette-list" role="listbox" bind:this={list}>
         {#each results as r, i (r.path)}
-          <button class="item" role="option" aria-selected={i === active} class:active={i === active} onmousemove={() => (active = i)} onclick={() => choose(r)}>
+          <button class="item" id="palette-opt-{i}" tabindex="-1" role="option" aria-selected={i === active} class:active={i === active} onmousemove={() => (active = i)} onclick={() => choose(r)}>
             <Icon name="file-code" size={15} color={i === active ? "var(--accent-emphasis)" : "var(--text-tertiary)"} />
             <span class="path"><span class="dir">{r.dir}</span><span class="name">{r.name}</span></span>
             {#if r.add !== undefined}

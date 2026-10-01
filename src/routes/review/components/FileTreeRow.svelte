@@ -32,6 +32,8 @@
     class:dir={isDir}
     role="button"
     tabindex="0"
+    aria-expanded={isDir ? isOpen : undefined}
+    aria-current={isSelected ? "true" : undefined}
     {@attach followSelection}
     onclick={() => (isDir ? onToggle(node.path) : onSelect(node.path))}
     onkeydown={(e) => {
@@ -91,6 +93,9 @@
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     transition: background var(--dur-fast) ease;
+  }
+  .row :global(svg) {
+    flex-shrink: 0;
   }
   .row:hover {
     background: var(--bg-inset);
