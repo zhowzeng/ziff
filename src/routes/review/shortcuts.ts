@@ -55,3 +55,13 @@ export const nextFileShortcut = bareKey('j');
 export const prevFileShortcut = bareKey('k');
 export const nextHunkShortcut = bareKey('n');
 export const prevHunkShortcut = bareKey('p');
+
+// Jump to any changed file by name. Handled at page level: the palette is a modal over
+// the whole screen, and the keystroke has to work from the filter box or the thread's
+// Textarea too, so it carries a modifier like Refresh does.
+export const paletteShortcut = {
+  label: isMac ? '⌘K' : 'Ctrl+K',
+  matches(e: KeyboardEvent) {
+    return (isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'k';
+  },
+};

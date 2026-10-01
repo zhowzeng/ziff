@@ -5,6 +5,7 @@
   import Topbar from "./components/Topbar.svelte";
   import QueueDrawer from "./components/QueueDrawer.svelte";
   import QueueFab from "./components/QueueFab.svelte";
+  import CommandPalette from "./components/CommandPalette.svelte";
   import Modal from "$lib/components/Modal.svelte";
   import Button from "$lib/components/Button.svelte";
   import SettingsModal from "$lib/components/SettingsModal.svelte";
@@ -13,7 +14,7 @@
   import { selection } from "./selection.svelte";
   import { resolveAgainstWorktree } from "./handoff";
   import { adjacentChangedFile, formatForAgent, formatQueueForAgent, pruneToChanged } from "./helpers";
-  import { copyAllShortcut, nextFileShortcut, prevFileShortcut, refreshShortcut } from "./shortcuts";
+  import { copyAllShortcut, nextFileShortcut, paletteShortcut, prevFileShortcut, refreshShortcut } from "./shortcuts";
   import { toast } from "$lib/toast/state.svelte";
   import { DIFF_FONT_SIZE_PX, settings, updateSettings } from "$lib/settings/state.svelte";
   import type { DiffMode, Repo } from "./types";
@@ -23,6 +24,7 @@
   });
 
   let settingsOpen = $state(false);
+  let paletteOpen = $state(false);
   let removeTarget = $state<Repo | null>(null);
 
   let changedTree = $derived(pruneToChanged(reviewState.tree));
@@ -40,6 +42,11 @@
   // not there is a Repo to reload, and j / k need the whole tree — see shortcuts.ts.
   $effect(() => {
     function onKey(e: KeyboardEvent) {
+      if (paletteShortcut.matches(e)) {
+        e.preventDefault();
+        if (reviewState.repoId && !settingsOpen && !removeTarget) paletteOpen = !paletteOpen;
+        return;
+      }
       if (refreshShortcut.matches(e)) {
         e.preventDefault();
         refresh();
@@ -48,7 +55,7 @@
       const step = nextFileShortcut.matches(e) ? 1 : prevFileShortcut.matches(e) ? -1 : 0;
       // A Modal is in front of the tree, so the file behind it isn't the reviewer's to
       // switch right now.
-      if (step !== 0 && !settingsOpen && !removeTarget) {
+      if (step !== 0 && !settingsOpen && !removeTarget && !paletteOpen) {
         const path = adjacentChangedFile(reviewState.tree, reviewState.selectedFile, step);
         if (path) selectFile(path);
         return;
@@ -178,6 +185,7 @@
     onFetch={() => reviewState.fetchRemoteBranch()}
     refreshing={reviewState.loadingTree}
     onRefresh={refresh}
+    onOpenPalette={() => (paletteOpen = true)}
   />
 
   <div class="body">
@@ -231,6 +239,13 @@
     {/if}
   </div>
 
+  <CommandPalette
+    open={paletteOpen}
+    tree={changedTree}
+    selectedFile={reviewState.selectedFile}
+    onSelect={selectFile}
+    onClose={() => (paletteOpen = false)}
+  />
   <QueueFab count={queueItems.length} open={commentQueue.open} onclick={() => (commentQueue.open = !commentQueue.open)} />
   <SettingsModal open={settingsOpen} onClose={() => (settingsOpen = false)} {settings} onChange={updateSettings} />
 
@@ -274,9 +289,12 @@
     margin-top: 10px;
     color: var(--danger-emphasis);
   }
+  /* The sidebar, diff and drawer float as cards on the tinted canvas. */
   .body {
     display: flex;
     flex: 1;
     min-height: 0;
+    gap: 10px;
+    padding: 0 10px 10px;
   }
 </style>

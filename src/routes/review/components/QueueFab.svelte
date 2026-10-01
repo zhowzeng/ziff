@@ -35,7 +35,7 @@
     box-shadow: var(--shadow-lg), 0 0 0 4px var(--accent-glow);
   }
   .fab.open {
-    right: 364px;
+    right: 374px;
     background: var(--accent-emphasis);
     border-color: transparent;
   }

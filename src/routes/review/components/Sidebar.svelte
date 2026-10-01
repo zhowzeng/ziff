@@ -127,8 +127,11 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border-default);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
     background: var(--bg-surface);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
     min-height: 0;
   }
 

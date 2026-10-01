@@ -8,8 +8,9 @@
 <svg width={size} height={size} viewBox="0 0 32 32" fill="none" role="img" aria-label="Ziff">
   <defs>
     <linearGradient id="g{id}" x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2dd4bf" />
-      <stop offset="1" stop-color="#0b8685" />
+      <stop stop-color="#7b6cff" />
+      <stop offset=".6" stop-color="#9b5cff" />
+      <stop offset="1" stop-color="#ff5c8a" />
     </linearGradient>
   </defs>
   <rect width="32" height="32" rx="9" fill="url(#g{id})" />

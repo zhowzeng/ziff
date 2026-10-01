@@ -483,7 +483,10 @@
     flex: 1;
     min-width: 0;
     overflow: auto;
-    background: var(--bg-canvas);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
   }
 
   /* Without wrapping, every row is as wide as the widest line, so its background runs

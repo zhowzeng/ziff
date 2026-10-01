@@ -24,8 +24,18 @@
   ];
 </script>
 
-<div class="welcome">
+<div
+  class="welcome"
+  role="presentation"
+  onpointermove={(e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
+  }}
+>
+  <div class="grid" aria-hidden="true"></div>
   <div class="aura" aria-hidden="true"></div>
+  <div class="spot" aria-hidden="true"></div>
 
   <div class="stack">
     <div class="mark"><Logo size={56} /></div>
@@ -71,6 +81,25 @@
     overflow: hidden;
     padding: 32px;
   }
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(var(--border-strong) 1px, transparent 1.2px);
+    background-size: 24px 24px;
+    opacity: 0.55;
+    -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, #000 10%, transparent 75%);
+    mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, #000 10%, transparent 75%);
+    pointer-events: none;
+  }
+  /* Follows the pointer: a soft spotlight that lights the dot grid under it. */
+  .spot {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 40%), var(--accent-glow), transparent 70%);
+    opacity: 0.7;
+    pointer-events: none;
+    transition: opacity var(--dur-slow) ease;
+  }
   .aura {
     position: absolute;
     width: 720px;
@@ -93,7 +122,7 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    max-width: 520px;
+    max-width: 640px;
   }
   .stack > * {
     animation: z-fade-up var(--dur-slow) var(--ease-out) both;
@@ -103,20 +132,21 @@
   }
   h1 {
     margin: 22px 0 0;
-    font-family: var(--font-sans);
-    font-size: 40px;
-    line-height: 1.08;
-    font-weight: 700;
-    letter-spacing: -0.04em;
+    font-family: var(--font-display);
+    font-size: 72px;
+    line-height: 0.98;
+    font-weight: 400;
+    letter-spacing: -0.025em;
     color: var(--text-primary);
     animation-delay: 60ms;
   }
   h1 em {
-    font-style: normal;
-    background: linear-gradient(100deg, var(--accent-emphasis), #2dd4bf 55%, var(--accent-emphasis));
+    font-style: italic;
+    background: var(--accent-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    padding-right: 0.08em;
   }
   p {
     margin: 14px 0 0;

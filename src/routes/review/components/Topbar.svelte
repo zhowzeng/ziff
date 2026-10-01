@@ -4,7 +4,7 @@
   import Dropdown from "$lib/components/Dropdown.svelte";
   import FetchButton from "$lib/components/FetchButton.svelte";
   import { branchMeta } from "../helpers";
-  import { refreshShortcut } from "../shortcuts";
+  import { paletteShortcut, refreshShortcut } from "../shortcuts";
   import type { Branch, DiffMode, Repo } from "../types";
 
   interface Props {
@@ -24,6 +24,7 @@
     onSetBaseBranch: (name: string) => void;
     onFetch: () => void;
     onRefresh: () => void;
+    onOpenPalette: () => void;
   }
   let {
     repos,
@@ -42,6 +43,7 @@
     onSetBaseBranch,
     onFetch,
     onRefresh,
+    onOpenPalette,
   }: Props = $props();
 
   let repoOptions = $derived(repos.map((r) => ({ value: r.id, label: r.name, meta: r.path })));
@@ -94,6 +96,11 @@
     />
   {/if}
   <div class="topbar-spacer"></div>
+  <button class="jump" onclick={onOpenPalette} disabled={!repoId} title="Jump to file">
+    <Icon name="search" size={13} color="var(--text-tertiary)" />
+    <span>Jump to file</span>
+    <kbd>{paletteShortcut.label}</kbd>
+  </button>
   <!-- The local half of the pair beside it: Refresh re-reads the worktree, Fetch goes
        over ssh and may sit there for a minute (docs/decisions/0011). Different icon for
        that reason — they are not two ways to do the same thing. -->
@@ -114,12 +121,9 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    height: 52px;
+    height: 56px;
     padding: 0 var(--space-4) 0 var(--space-4);
-    border-bottom: 1px solid var(--border-default);
-    background: var(--bg-glass);
-    backdrop-filter: blur(14px) saturate(1.3);
-    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    background: transparent;
     flex-shrink: 0;
     position: relative;
     z-index: 10;
@@ -179,6 +183,42 @@
   .topbar-spacer {
     flex: 1;
     min-width: 8px;
+  }
+
+  .jump {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    min-width: 220px;
+    padding: 0 6px 0 10px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-default);
+    background: var(--bg-raised);
+    color: var(--text-tertiary);
+    font: 400 var(--text-xs) var(--font-sans);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color var(--dur-fast) ease, box-shadow var(--dur-base) var(--ease-out);
+  }
+  .jump:hover:not(:disabled) {
+    border-color: var(--accent-muted-border);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .jump:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .jump span {
+    flex: 1;
+    text-align: left;
+  }
+  .jump kbd {
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+    background: var(--bg-inset);
+    font: 500 11px var(--font-mono);
+    color: var(--text-secondary);
   }
 
   .topbar-refresh {

@@ -63,8 +63,8 @@ Single source of truth: `src/lib/styles/tokens/{colors,typography,spacing}.css` 
 ## VISUAL FOUNDATIONS
 
 - **Palette source:** the neutral, success (green), danger (red), and warning (yellow) scales, plus the semantic aliases (`bgColor.*`, `fgColor.*`, `borderColor.*`) and the diff component tokens (`diffBlob.*`), are taken from `github/primer/primitives` — exact, current GitHub values. Notable real detail: GitHub's diff **hunk header** background is a subtle **blue** tint (`bgColor.accent.muted`, `#ddf4ff`), not gray — `--diff-hunk-bg` matches this.
-- **Palette**: paper-white canvas (`--bg-canvas: #fbfbfa`) with a warm-neutral gray scale for borders and secondary text, plus a full **dark theme** (Settings → Theme: System / Light / Dark; tokens redefined under `:root[data-theme="dark"]` and the OS preference in `colors.css`). One brand accent, teal (`--accent`; mint `#2dd4bf` in dark), used for primary actions, active file-tree rows, the branch pill, comment affordances and focus rings. Components must use semantic tokens (`--bg-raised`, `--bg-active`, `--on-emphasis`, `--text-*`), never raw `--gray-*`/hex, so both themes work.
-- **Type**: **Mona Sans** — GitHub's own open-source UI typeface (`github/mona-sans`, SIL OFL-1.1, also on Google Fonts) — paired with the **native system monospace stack** for code/diffs/line numbers. Mirrors github.com exactly: GitHub ships Mona Sans for UI text but doesn't load a custom webfont for code.
+- **Palette**: *porcelain* in light (warm tinted canvas `--bg-canvas` with white cards) and *midnight ink* in dark (Settings → Theme: System / Light / Dark; tokens redefined under `:root[data-theme="dark"]` and the OS preference in `colors.css`). One brand accent, indigo-violet (`--accent`, with `--accent-gradient` violet→pink for the logo and hero), used for primary actions, the active file row, the branch pill, comment affordances and focus rings. Diff add/remove stay green/red. Components must use semantic tokens (`--bg-raised`, `--bg-active`, `--on-emphasis`, `--text-*`), never raw `--gray-*`/hex, so both themes work. The earlier GitHub/Primer-derived look is no longer a constraint.
+- **Type**: **Geist** for UI, **Geist Mono** for code, **Instrument Serif** (display, italic for emphasis) for editorial headlines such as the Welcome screen. All three are bundled via `@fontsource` — no network needed at runtime; CJK falls through to the OS font.
 - **Spacing**: 4px base unit, scale at 4/8/12/16/20/24/32/48/64.
 - **Backgrounds**: flat and functional in the working UI. The one expressive moment is the first-run `Welcome` screen (soft accent aura, animated mini diff, gradient headline); the Z `Logo` mark carries a teal gradient.
 - **Animation**: restrained and purposeful, driven by `--ease-out` / `--ease-spring` and `--dur-*` tokens (all collapse to 0 under `prefers-reduced-motion`): sliding pill in `Segmented`, chevron rotation in the tree and hunks, fade-up for empty states / threads, drawer slide-in, modal pop, shimmer skeleton while the tree loads.
@@ -73,7 +73,7 @@ Single source of truth: `src/lib/styles/tokens/{colors,typography,spacing}.css` 
 - **Borders**: 1px hairlines (`--border-default: #d1d9e0`, real Primer `borderColor.default`) are the dominant structural device, more than shadow. `--border-muted` aliases `--border-default` — accurate to real GitHub.
 - **Shadows**: minimal. A comment thread card gets a small elevation (`--shadow-md`); everything else is flat with borders only.
 - **Corner radii**: 5–8px on buttons/inputs, 12–16px on cards, modals and the comment thread. Pills only for status badges, counts and the branch indicator.
-- **Cards**: white background, 1px border, small radius, small shadow only when floating above content.
+- **Layout**: the sidebar, diff panel and queue drawer float as rounded cards (`--radius-xl`) on the tinted canvas with a 10px gap; the topbar sits directly on the canvas. `⌘K` / `Ctrl+K` opens a command palette to jump to a changed file.
 - **Transparency/blur**: only on floating chrome — the topbar, the sticky file header (`--bg-glass` + backdrop blur) and the modal scrim.
 - **Imagery**: none — this is a text/code-first tool.
 
@@ -83,9 +83,7 @@ Small monochrome line icons (chevrons, copy, emoji-reaction) — a stroke-based 
 
 ## Fonts
 
-**UI sans — Mona Sans (real, not a substitution).** GitHub's own open-source variable typeface, from `github/mona-sans` (SIL OFL-1.1 license). GitHub's actual production UI font. Loaded via `fonts.googleapis.com` in `tokens/typography.css`.
-
-**Code/mono — native system monospace stack (real, not a substitution).** `ui-monospace, SF Mono, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace` — literally what `primer/primitives` defines for `fontStack.monospace`. GitHub does not ship a custom webfont for code.
+Bundled with the app through `@fontsource-variable/geist`, `@fontsource-variable/geist-mono` and `@fontsource/instrument-serif` (all SIL OFL), imported in `tokens/typography.css`. Geist has no CJK glyphs, so Traditional Chinese renders in the platform font (PingFang TC / Noto Sans TC / Microsoft JhengHei).
 
 ## No logo
 
