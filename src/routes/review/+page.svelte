@@ -91,10 +91,31 @@
     // window took the queue with it — that is what the undo is for, and it is only on
     // offer while the toast is, so this toast stands longer than a plain report.
     const handedOff = commentQueue.takeFor(repoId);
+    // The open thread rendered one of those comments; with it gone the thread would
+    // linger as an empty reply box, so it closes with the queue. Undo reopens it, but
+    // only if the same file and Diff Mode are still on screen — the range is flat line
+    // indexes into that diff and means nothing against another.
+    const reopen = selection.range;
+    const { selectedFile, diffMode } = reviewState;
+    selection.close();
     toast(`已複製 ${comments.length} 則 comment，queue 已清空`, {
       variant: "success",
       duration: 8000,
-      action: { label: "復原", onclick: () => commentQueue.restore(handedOff) },
+      action: {
+        label: "復原",
+        onclick: () => {
+          commentQueue.restore(handedOff);
+          if (
+            reopen &&
+            !selection.range &&
+            reviewState.repoId === repoId &&
+            reviewState.selectedFile === selectedFile &&
+            reviewState.diffMode === diffMode
+          ) {
+            selection.openAt(reopen.lo, reopen.hi);
+          }
+        },
+      },
     });
   }
 

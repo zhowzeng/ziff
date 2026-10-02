@@ -74,7 +74,7 @@ class CommentQueue {
   }
 
   // Undoing a hand-off puts back the same comments, ids and all, so anything holding on
-  // to one of them — an open comment thread — still finds it.
+  // to one of them — such as the thread the undo reopens — still finds it.
   restore(items: QueueItem[]) {
     this.#items.push(...items);
   }
